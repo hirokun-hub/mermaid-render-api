@@ -1,8 +1,13 @@
 # Mermaid Render API
 
-軽量な Mermaid 画像変換 API です。TypeScript + Express で `/render` と `/healthz` を提供し、`@mermaid-js/mermaid-cli` を内部で呼び出して `svg`/`png` を生成します。
+MermaidコードをSVG/PNG画像に変換するHTTP APIです。TypeScript + Express で `/render` と `/healthz` を提供し、`@mermaid-js/mermaid-cli`（mmdc）を内部で実行します。
 
-## セットアップ
+## 前提
+
+- Node.js 20
+- Docker Desktop（WSL利用可）
+
+## ローカル実行
 
 ```bash
 npm install
@@ -10,48 +15,67 @@ npm run build
 npm run start
 ```
 
-- `npm run build` で TypeScript を `dist/` に出力
-- `npm run start` で `dist/server/server.js` を起動
+## Docker 実行
 
-## Docker での実行
-
-Docker コンテナ内で Node と Mermaid CLI を含む環境を構築済みです。ビルドと起動は以下のように。
-
+1) `.env` を作成
 ```bash
-docker compose up --build
+cp .env.example .env
 ```
 
-公開ポートはデフォルト `3000` です。手元の `curl` で `http://localhost:3000/healthz` と叩いて `ok` が返れば正常です。
+2) 起動
+```bash
+docker compose up --build -d
+```
 
-### 個別コマンド
+3) 動作確認
+```bash
+curl -i http://localhost:3000/healthz
+curl -i -X POST http://localhost:3000/render \
+  -H "Content-Type: application/json" \
+  -d '{"code":"graph TD\nA-->B","format":"svg"}'
+```
+
+## WSL での起動
+
+WindowsでDocker Desktopを有効化し、対象のWSLディストリで以下を実行します。
 
 ```bash
-docker build -t mermaid-render-api .
-docker run --rm -p 3000:3000 --env-file .env mermaid-render-api
+cp .env.example .env
+docker compose up --build -d
 ```
 
 ## 環境変数
 
-以下は `.env` に設定可能です。`docker-compose` や `npm` 実行時に `DEFAULT_TIMEOUT_MS`/`MAX_CONCURRENT_RENDERERS`/`MAX_CODE_SIZE` を調整してください（ローカル起動時も `.env` を読み込みます）。
+`.env` で調整可能です（Docker起動時に読み込まれます）。
 
 - `DEFAULT_TIMEOUT_MS`: Mermaid CLI のタイムアウト（ミリ秒、デフォルト 8000）
 - `MAX_CONCURRENT_RENDERERS`: 同時レンダリング上限（デフォルト 2）
 - `MAX_CODE_SIZE`: `code` の最大バイト数（デフォルト 51200）
 
-`.env.example` をコピーしてカスタマイズしてください。
+## Docker E2E 補助
 
-## Docker 上での E2E 検証補助
-
-`scripts/docker-e2e.sh` は `docker compose up --build` 後に `/healthz` と `/render` を叩く簡易検証スクリプトです（Docker と `curl` が使える環境でのみ実行してください）。
+`scripts/docker-e2e.sh` は `/healthz` と `/render` を叩く簡易検証スクリプトです。
 
 ```bash
 chmod +x scripts/docker-e2e.sh
 scripts/docker-e2e.sh
 ```
 
-## テストとビルド
+## よくある問題
+
+### ポートが使用中
+
+`Bind for 0.0.0.0:3000 failed` が出る場合は、`docker-compose.yml` のポートを変更してください。
+
+```yaml
+ports:
+  - "3100:3000"
+```
+
+その場合の確認先は `http://localhost:3100/healthz` になります。
+
+## テスト
 
 ```bash
-npm run build
 npm run test
 ```
