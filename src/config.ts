@@ -17,3 +17,6 @@ export const MAX_CONCURRENT_RENDERERS = toPositiveInt(
 export const MAX_CODE_SIZE = toPositiveInt(process.env.MAX_CODE_SIZE, 50 * 1024)
 export const TEMP_DIR = join(tmpdir(), 'mermaid-render-api')
 export const SUPPORTED_FORMATS = ['svg', 'png'] as const
+export const PUPPETEER_CONFIG_PATH =
+  process.env.PUPPETEER_CONFIG_PATH ??
+  join(process.cwd(), 'puppeteer.config.json')

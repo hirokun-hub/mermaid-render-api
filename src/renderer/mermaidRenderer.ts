@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
-import { TEMP_DIR } from '../config.js'
+import { PUPPETEER_CONFIG_PATH, TEMP_DIR } from '../config.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -45,7 +45,9 @@ export class MermaidRenderer {
           '--output',
           outputPath,
           '--backgroundColor',
-          'transparent'
+          'transparent',
+          '--puppeteerConfigFile',
+          PUPPETEER_CONFIG_PATH
         ],
         { timeout: timeoutMs, env: process.env }
       )

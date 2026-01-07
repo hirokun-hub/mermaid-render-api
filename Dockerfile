@@ -16,6 +16,7 @@ WORKDIR /app
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
+    chromium \
     libcairo2 \
     libpango-1.0-0 \
     libjpeg62-turbo \
@@ -47,11 +48,15 @@ RUN apt-get update \
 
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/puppeteer.config.json ./puppeteer.config.json
 
 RUN npm install --omit=dev
 
 ENV NODE_ENV=production
 ENV TZ=UTC
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_CONFIG_PATH=/app/puppeteer.config.json
 
 RUN mkdir -p /tmp/mermaid
 

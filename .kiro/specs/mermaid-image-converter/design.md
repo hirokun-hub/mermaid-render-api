@@ -193,6 +193,25 @@ const RENDERER_CONFIG = {
 
 設定値・定数は原則として単一箇所に集約し、ハードコードを避ける。実装では`VALIDATION_RULES`、`RATE_LIMIT_CONFIG`、`RENDERER_CONFIG`のような設定集約点または`config`モジュール／環境変数で管理する。
 
+### Chromium実行方針（マルチアーキ対応）
+
+Puppeteerが自動でダウンロードするChromiumはアーキテクチャ差異（arm64/amd64）で不整合が起きやすいため、OS配布のChromiumを使用し、実行バイナリを固定する。
+
+**方針**:
+- OS配布の`chromium`をインストールして使用する
+- Puppeteerの自動ダウンロードは無効化する
+
+**環境変数（実行時）**:
+```bash
+PUPPETEER_SKIP_DOWNLOAD=true
+PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+```
+
+**理由**: Apple Silicon環境で`rosetta error`（x86_64バイナリ起動失敗）が発生しやすいため、マルチアーキで安定動作させる。
+
+**Docker運用の注意**:
+- root実行時に`--no-sandbox`が必要なため、Puppeteer設定ファイル（例: `puppeteer.config.json`）で`args`に`--no-sandbox`と`--disable-setuid-sandbox`を指定する。
+
 **処理フロー**:
 1. 一時ファイルにMermaidコードを書き込み
 2. `mmdc`コマンドを実行（タイムアウト付き）
