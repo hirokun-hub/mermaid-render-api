@@ -51,6 +51,7 @@ docker compose up --build -d
 - `DEFAULT_TIMEOUT_MS`: Mermaid CLI のタイムアウト（ミリ秒、デフォルト 8000）
 - `MAX_CONCURRENT_RENDERERS`: 同時レンダリング上限（デフォルト 2）
 - `MAX_CODE_SIZE`: `code` の最大バイト数（デフォルト 51200）
+- `PNG_RENDER_SCALE`: PNG出力時の拡大率（デフォルト 2、SVGには適用しない）
 
 ## Docker E2E 補助
 

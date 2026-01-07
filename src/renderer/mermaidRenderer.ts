@@ -3,7 +3,7 @@ import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
-import { PUPPETEER_CONFIG_PATH, TEMP_DIR } from '../config.js'
+import { PNG_RENDER_SCALE, PUPPETEER_CONFIG_PATH, TEMP_DIR } from '../config.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -35,22 +35,24 @@ export class MermaidRenderer {
     await fs.writeFile(inputPath, code, 'utf8')
 
     try {
-      await execFileAsync(
-        'npx',
-        [
-          '--yes',
-          'mmdc',
-          '--input',
-          inputPath,
-          '--output',
-          outputPath,
-          '--backgroundColor',
-          'transparent',
-          '--puppeteerConfigFile',
-          PUPPETEER_CONFIG_PATH
-        ],
-        { timeout: timeoutMs, env: process.env }
-      )
+      const args = [
+        '--yes',
+        'mmdc',
+        '--input',
+        inputPath,
+        '--output',
+        outputPath,
+        '--backgroundColor',
+        'transparent',
+        '--puppeteerConfigFile',
+        PUPPETEER_CONFIG_PATH
+      ]
+
+      if (format === 'png') {
+        args.push('--scale', String(PNG_RENDER_SCALE))
+      }
+
+      await execFileAsync('npx', args, { timeout: timeoutMs, env: process.env })
 
       const data = await fs.readFile(outputPath)
       return { success: true, data, exitCode: 0 }

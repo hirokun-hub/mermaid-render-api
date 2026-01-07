@@ -20,3 +20,4 @@ export const SUPPORTED_FORMATS = ['svg', 'png'] as const
 export const PUPPETEER_CONFIG_PATH =
   process.env.PUPPETEER_CONFIG_PATH ??
   join(process.cwd(), 'puppeteer.config.json')
+export const PNG_RENDER_SCALE = toPositiveInt(process.env.PNG_RENDER_SCALE, 2)
