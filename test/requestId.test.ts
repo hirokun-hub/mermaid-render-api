@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { generateRequestId } from '../src/utils/requestId'
+import { generateRequestId } from '../src/utils/requestId.js'
 
 describe('generateRequestId', () => {
   test('returns a UUID-like string', () => {

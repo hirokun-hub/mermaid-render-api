@@ -1,5 +1,5 @@
 import { describe, test, vi, expect } from 'vitest'
-import { logError, logRequest, logResponse, logStartup } from '../src/utils/logger'
+import { logError, logRequest, logResponse, logStartup } from '../src/utils/logger.js'
 
 describe('logger utilities', () => {
   afterEach(() => {

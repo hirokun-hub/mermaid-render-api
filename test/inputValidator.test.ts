@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { validateRenderRequest } from '../src/validation/inputValidator'
+import { validateRenderRequest } from '../src/validation/inputValidator.js'
 
 const validCode = 'graph TD\nA-->B'
 
@@ -25,6 +25,27 @@ describe('validateRenderRequest', () => {
     expect(result.valid).toBe(false)
     expect(result.error?.message).toContain('format must be one of')
     expect(result.requestedFormat).toBe('gif')
+  })
+
+  test('rejects non-string format', () => {
+    const result = validateRenderRequest({
+      code: validCode,
+      format: 1 as unknown as string
+    })
+
+    expect(result.valid).toBe(false)
+    expect(result.error?.message).toContain('format must be a string')
+    expect(result.requestedFormat).toBe('1')
+  })
+
+  test('rejects non-string code input', () => {
+    const result = validateRenderRequest({
+      code: 123 as unknown as string
+    })
+
+    expect(result.valid).toBe(false)
+    expect(result.error?.message).toContain('code must be a string')
+    expect(result.requestedFormat).toBe('svg')
   })
 
   test('rejects code larger than limit', () => {

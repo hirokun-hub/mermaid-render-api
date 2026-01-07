@@ -1,6 +1,8 @@
+import { SUPPORTED_FORMATS } from '../config.js'
+
 export interface RenderRequestInput {
-  code?: string
-  format?: string
+  code?: unknown
+  format?: unknown
 }
 
 export interface ValidateResultError {
@@ -13,13 +15,12 @@ export interface ValidateResultError {
 
 export interface ValidationResult {
   valid: boolean
-  normalizedFormat: 'svg' | 'png'
+  normalizedFormat: (typeof SUPPORTED_FORMATS)[number]
   requestedFormat: string
   error?: ValidateResultError
 }
 
 const MAX_CODE_SIZE = 50 * 1024
-const VALID_FORMATS = ['svg', 'png'] as const
 const DEFAULT_FORMAT: ValidationResult['normalizedFormat'] = 'svg'
 
 function createInvalidRequest(message: string): ValidateResultError {
@@ -33,15 +34,38 @@ function createInvalidRequest(message: string): ValidateResultError {
 }
 
 export function validateRenderRequest(input: RenderRequestInput): ValidationResult {
-  const requestedFormat = input.format ?? DEFAULT_FORMAT
+  const formatRaw = input.format
+
+  if (formatRaw !== undefined && typeof formatRaw !== 'string') {
+    return {
+      valid: false,
+      normalizedFormat: DEFAULT_FORMAT,
+      requestedFormat: String(formatRaw),
+      error: createInvalidRequest('format must be a string')
+    }
+  }
+
+  const requestedFormat = formatRaw ?? DEFAULT_FORMAT
   const normalizedFormat: ValidationResult['normalizedFormat'] =
-    VALID_FORMATS.includes(
+    SUPPORTED_FORMATS.includes(
       requestedFormat.toLowerCase() as ValidationResult['normalizedFormat']
     )
       ? (requestedFormat.toLowerCase() as ValidationResult['normalizedFormat'])
       : DEFAULT_FORMAT
 
-  if (!input.code || input.code.trim().length === 0) {
+  const codeRaw = input.code
+  if (codeRaw === undefined || typeof codeRaw !== 'string') {
+    return {
+      valid: false,
+      normalizedFormat,
+      requestedFormat,
+      error: createInvalidRequest('code must be a string')
+    }
+  }
+
+  const trimmedCode = codeRaw.trim()
+
+  if (trimmedCode.length === 0) {
     return {
       valid: false,
       normalizedFormat,
@@ -50,7 +74,7 @@ export function validateRenderRequest(input: RenderRequestInput): ValidationResu
     }
   }
 
-  const codeLength = Buffer.byteLength(input.code, 'utf-8')
+  const codeLength = Buffer.byteLength(codeRaw, 'utf-8')
   if (codeLength > MAX_CODE_SIZE) {
     return {
       valid: false,
@@ -63,7 +87,7 @@ export function validateRenderRequest(input: RenderRequestInput): ValidationResu
   }
 
   if (
-    !VALID_FORMATS.includes(
+    !SUPPORTED_FORMATS.includes(
       requestedFormat.toLowerCase() as ValidationResult['normalizedFormat']
     )
   ) {
@@ -72,7 +96,7 @@ export function validateRenderRequest(input: RenderRequestInput): ValidationResu
       normalizedFormat,
       requestedFormat,
       error: createInvalidRequest(
-        `format must be one of: ${VALID_FORMATS.join(', ')}`
+        `format must be one of: ${SUPPORTED_FORMATS.join(', ')}`
       )
     }
   }
