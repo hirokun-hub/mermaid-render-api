@@ -1,4 +1,4 @@
-import { SUPPORTED_FORMATS } from '../config.js'
+import { MAX_CODE_SIZE, SUPPORTED_FORMATS } from '../config.js'
 
 export interface RenderRequestInput {
   code?: unknown
@@ -20,7 +20,6 @@ export interface ValidationResult {
   error?: ValidateResultError
 }
 
-const MAX_CODE_SIZE = 50 * 1024
 const DEFAULT_FORMAT: ValidationResult['normalizedFormat'] = 'svg'
 
 function createInvalidRequest(message: string): ValidateResultError {
