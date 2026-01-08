@@ -3,7 +3,12 @@ import { promises as fs } from 'node:fs'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
-import { PNG_RENDER_SCALE, PUPPETEER_CONFIG_PATH, TEMP_DIR } from '../config.js'
+import {
+  MERMAID_CONFIG_PATH,
+  PNG_RENDER_SCALE,
+  PUPPETEER_CONFIG_PATH,
+  TEMP_DIR
+} from '../config.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -44,6 +49,8 @@ export class MermaidRenderer {
         outputPath,
         '--backgroundColor',
         'transparent',
+        '--configFile',
+        MERMAID_CONFIG_PATH,
         '--puppeteerConfigFile',
         PUPPETEER_CONFIG_PATH
       ]

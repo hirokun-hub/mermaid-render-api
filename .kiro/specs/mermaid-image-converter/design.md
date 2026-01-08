@@ -212,6 +212,28 @@ PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 **Docker運用の注意**:
 - root実行時に`--no-sandbox`が必要なため、Puppeteer設定ファイル（例: `puppeteer.config.json`）で`args`に`--no-sandbox`と`--disable-setuid-sandbox`を指定する。
 
+### 日本語フォント対応方針
+
+日本語の豆腐化/欠落を避けるため、Docker内に日本語フォントを導入し、Mermaid側でフォントを明示指定する。
+
+**推奨フォント**:
+- 軽量: `fonts-ipaexfont-gothic`（必要なら `fonts-ipaexfont-mincho`）
+- 確実: `fonts-noto-cjk`
+
+**Mermaid設定（例）**:
+```json
+{
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "\"IPAexGothic\", \"Noto Sans CJK JP\", sans-serif"
+  }
+}
+```
+
+**注意点**:
+- PNGはコンテナ内でラスタライズされるため、フォント導入で確実に改善する。
+- SVGは閲覧環境のフォントに依存するため、閲覧側に同等フォントが無い場合は文字化けする可能性がある。
+
 **処理フロー**:
 1. 一時ファイルにMermaidコードを書き込み
 2. `mmdc`コマンドを実行（タイムアウト付き）

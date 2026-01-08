@@ -52,6 +52,7 @@ docker compose up --build -d
 - `MAX_CONCURRENT_RENDERERS`: 同時レンダリング上限（デフォルト 2）
 - `MAX_CODE_SIZE`: `code` の最大バイト数（デフォルト 51200）
 - `PNG_RENDER_SCALE`: PNG出力時の拡大率（デフォルト 2、SVGには適用しない）
+- `MERMAID_CONFIG_PATH`: Mermaid設定ファイルのパス（デフォルト `/app/mermaid.config.json`）
 
 ## Docker E2E 補助
 

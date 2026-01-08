@@ -21,3 +21,6 @@ export const PUPPETEER_CONFIG_PATH =
   process.env.PUPPETEER_CONFIG_PATH ??
   join(process.cwd(), 'puppeteer.config.json')
 export const PNG_RENDER_SCALE = toPositiveInt(process.env.PNG_RENDER_SCALE, 2)
+export const MERMAID_CONFIG_PATH =
+  process.env.MERMAID_CONFIG_PATH ??
+  join(process.cwd(), 'mermaid.config.json')
