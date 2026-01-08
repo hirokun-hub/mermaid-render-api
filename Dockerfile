@@ -17,7 +17,7 @@ WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     chromium \
-    fonts-ipaexfont-gothic \
+    fonts-noto-cjk \
     libcairo2 \
     libpango-1.0-0 \
     libjpeg62-turbo \

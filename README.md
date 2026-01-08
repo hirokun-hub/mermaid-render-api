@@ -54,6 +54,10 @@ docker compose up --build -d
 - `PNG_RENDER_SCALE`: PNG出力時の拡大率（デフォルト 2、SVGには適用しない）
 - `MERMAID_CONFIG_PATH`: Mermaid設定ファイルのパス（デフォルト `/app/mermaid.config.json`）
 
+## フォント
+
+日本語表示の美観を優先するため、コンテナには `fonts-noto-cjk` を導入し、Mermaid設定で `Noto Sans CJK JP` を優先します。
+
 ## Docker E2E 補助
 
 `scripts/docker-e2e.sh` は `/healthz` と `/render` を叩く簡易検証スクリプトです。
