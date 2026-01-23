@@ -1,14 +1,9 @@
-version: '3.9'
 services:
   mermaid-render-api:
     build:
       context: .
     ports:
       - '3100:3000'
-    environment:
-      DEFAULT_TIMEOUT_MS: '${DEFAULT_TIMEOUT_MS}'
-      MAX_CONCURRENT_RENDERERS: '${MAX_CONCURRENT_RENDERERS}'
-      MAX_CODE_SIZE: '${MAX_CODE_SIZE}'
     env_file:
       - .env
     restart: unless-stopped

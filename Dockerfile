@@ -60,7 +60,7 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_CONFIG_PATH=/app/puppeteer.config.json
 ENV MERMAID_CONFIG_PATH=/app/mermaid.config.json
 
-RUN mkdir -p /tmp/mermaid
+RUN mkdir -p /tmp/mermaid-render-api
 
 EXPOSE 3000
 CMD ["npm", "run", "start"]
