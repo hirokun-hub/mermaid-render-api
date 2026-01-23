@@ -51,5 +51,8 @@ tmp/
 temp/
 *.tmp
 
+# Dynamically generated config files
+mermaid.config.json
+
 # Keep Kiro configuration
 !.kiro/
