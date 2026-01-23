@@ -49,7 +49,6 @@ RUN apt-get update \
 
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/mermaid.config.json ./mermaid.config.json
 COPY --from=builder /app/puppeteer.config.json ./puppeteer.config.json
 
 RUN npm install --omit=dev

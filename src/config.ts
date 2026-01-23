@@ -21,6 +21,30 @@ export const PUPPETEER_CONFIG_PATH =
   process.env.PUPPETEER_CONFIG_PATH ??
   join(process.cwd(), 'puppeteer.config.json')
 export const PNG_RENDER_SCALE = toPositiveInt(process.env.PNG_RENDER_SCALE, 2)
+export const MERMAID_PADDING = toPositiveInt(process.env.MERMAID_PADDING, 20)
 export const MERMAID_CONFIG_PATH =
   process.env.MERMAID_CONFIG_PATH ??
   join(process.cwd(), 'mermaid.config.json')
+
+export interface MermaidConfig {
+  theme: string
+  themeVariables: {
+    fontFamily: string
+  }
+  themeCSS?: string
+}
+
+export function generateMermaidConfig(padding: number): MermaidConfig {
+  const config: MermaidConfig = {
+    theme: 'base',
+    themeVariables: {
+      fontFamily: '"Noto Sans CJK JP", "IPAexGothic", sans-serif'
+    }
+  }
+
+  if (padding > 0) {
+    config.themeCSS = `svg { padding: ${padding}px; }`
+  }
+
+  return config
+}
