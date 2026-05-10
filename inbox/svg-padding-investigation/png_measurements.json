@@ -1,0 +1,252 @@
+[
+  {
+    "id": "01-single-ascii",
+    "img_w": 921,
+    "img_h": 210,
+    "diagram_bbox": [
+      22,
+      21,
+      875,
+      183
+    ],
+    "diagram_w": 853,
+    "diagram_h": 162,
+    "outer_pad": {
+      "top": 21,
+      "left": 22,
+      "right": 46,
+      "bottom": 27
+    },
+    "dark_bbox": [
+      114,
+      86,
+      784,
+      135
+    ]
+  },
+  {
+    "id": "02-single-cjk",
+    "img_w": 801,
+    "img_h": 210,
+    "diagram_bbox": [
+      21,
+      21,
+      756,
+      183
+    ],
+    "diagram_w": 735,
+    "diagram_h": 162,
+    "outer_pad": {
+      "top": 21,
+      "left": 21,
+      "right": 45,
+      "bottom": 27
+    },
+    "dark_bbox": [
+      113,
+      84,
+      660,
+      126
+    ]
+  },
+  {
+    "id": "03-multiline-cjk-br",
+    "img_w": 1140,
+    "img_h": 282,
+    "diagram_bbox": [
+      22,
+      22,
+      1094,
+      255
+    ],
+    "diagram_w": 1072,
+    "diagram_h": 233,
+    "outer_pad": {
+      "top": 22,
+      "left": 22,
+      "right": 46,
+      "bottom": 27
+    },
+    "dark_bbox": [
+      116,
+      84,
+      997,
+      203
+    ]
+  },
+  {
+    "id": "04-multiline-cjk-3lines",
+    "img_w": 1041,
+    "img_h": 354,
+    "diagram_bbox": [
+      21,
+      21,
+      995,
+      324
+    ],
+    "diagram_w": 974,
+    "diagram_h": 303,
+    "outer_pad": {
+      "top": 21,
+      "left": 21,
+      "right": 46,
+      "bottom": 30
+    },
+    "dark_bbox": [
+      113,
+      83,
+      904,
+      268
+    ]
+  },
+  {
+    "id": "05-multiline-ascii-br",
+    "img_w": 1080,
+    "img_h": 282,
+    "diagram_bbox": [
+      22,
+      22,
+      1034,
+      255
+    ],
+    "diagram_w": 1012,
+    "diagram_h": 233,
+    "outer_pad": {
+      "top": 22,
+      "left": 22,
+      "right": 46,
+      "bottom": 27
+    },
+    "dark_bbox": [
+      114,
+      87,
+      943,
+      203
+    ]
+  },
+  {
+    "id": "06-rounded-cjk-multi",
+    "img_w": 960,
+    "img_h": 282,
+    "diagram_bbox": [
+      22,
+      22,
+      914,
+      254
+    ],
+    "diagram_w": 892,
+    "diagram_h": 232,
+    "outer_pad": {
+      "top": 22,
+      "left": 22,
+      "right": 46,
+      "bottom": 28
+    },
+    "dark_bbox": [
+      72,
+      84,
+      862,
+      202
+    ]
+  },
+  {
+    "id": "07-stadium-cjk-multi",
+    "img_w": 945,
+    "img_h": 237,
+    "diagram_bbox": [
+      21,
+      22,
+      900,
+      209
+    ],
+    "diagram_w": 879,
+    "diagram_h": 187,
+    "outer_pad": {
+      "top": 22,
+      "left": 21,
+      "right": 45,
+      "bottom": 28
+    },
+    "dark_bbox": [
+      73,
+      62,
+      854,
+      180
+    ]
+  },
+  {
+    "id": "08-diamond-cjk-multi",
+    "img_w": 1176,
+    "img_h": 672,
+    "diagram_bbox": [
+      21,
+      21,
+      1131,
+      637
+    ],
+    "diagram_w": 1110,
+    "diagram_h": 616,
+    "outer_pad": {
+      "top": 21,
+      "left": 21,
+      "right": 45,
+      "bottom": 35
+    },
+    "dark_bbox": [
+      141,
+      275,
+      1041,
+      394
+    ]
+  },
+  {
+    "id": "09-long-cjk-singleline",
+    "img_w": 1209,
+    "img_h": 354,
+    "diagram_bbox": [
+      22,
+      22,
+      1163,
+      326
+    ],
+    "diagram_w": 1141,
+    "diagram_h": 304,
+    "outer_pad": {
+      "top": 22,
+      "left": 22,
+      "right": 46,
+      "bottom": 28
+    },
+    "dark_bbox": [
+      128,
+      85,
+      1071,
+      268
+    ]
+  },
+  {
+    "id": "10-td-multiline-cjk",
+    "img_w": 618,
+    "img_h": 666,
+    "diagram_bbox": [
+      21,
+      21,
+      573,
+      620
+    ],
+    "diagram_w": 552,
+    "diagram_h": 599,
+    "outer_pad": {
+      "top": 21,
+      "left": 21,
+      "right": 45,
+      "bottom": 46
+    },
+    "dark_bbox": [
+      114,
+      82,
+      480,
+      570
+    ]
+  }
+]

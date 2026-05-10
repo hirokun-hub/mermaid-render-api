@@ -1,0 +1,52 @@
+[
+  {
+    "id": "01-single-ascii",
+    "desc": "単行ASCII（ベースライン）",
+    "code": "flowchart LR\n  A[\"Single Line\"] --> B[\"Done\"]\n"
+  },
+  {
+    "id": "02-single-cjk",
+    "desc": "単行CJK",
+    "code": "flowchart LR\n  A[\"集める\"] --> B[\"完了\"]\n"
+  },
+  {
+    "id": "03-multiline-cjk-br",
+    "desc": "改修案で報告された見切れケース「集める ✓<br>(PrimeDrive 自動)」",
+    "code": "flowchart LR\n  A[\"集める ✓<br>(PrimeDrive 自動)\"] --> B[\"整理する\"]\n"
+  },
+  {
+    "id": "04-multiline-cjk-3lines",
+    "desc": "3行CJK + br",
+    "code": "flowchart LR\n  A[\"行1: データ収集<br>行2: 自動連携<br>行3: 確認\"] --> B[\"次工程\"]\n"
+  },
+  {
+    "id": "05-multiline-ascii-br",
+    "desc": "2行ASCII + br（CJK起因か検証用）",
+    "code": "flowchart LR\n  A[\"First Line<br>Second Line (auto)\"] --> B[\"Next\"]\n"
+  },
+  {
+    "id": "06-rounded-cjk-multi",
+    "desc": "角丸ノードでCJK複数行",
+    "code": "flowchart LR\n  A(\"集める ✓<br>(PrimeDrive 自動)\") --> B(\"整理する\")\n"
+  },
+  {
+    "id": "07-stadium-cjk-multi",
+    "desc": "スタジアム形でCJK複数行",
+    "code": "flowchart LR\n  A([\"集める ✓<br>(PrimeDrive 自動)\"]) --> B([\"整理する\"])\n"
+  },
+  {
+    "id": "08-diamond-cjk-multi",
+    "desc": "ひし形でCJK複数行",
+    "code": "flowchart LR\n  A{\"集める ✓<br>(PrimeDrive 自動)\"} --> B{\"整理する\"}\n"
+  },
+  {
+    "id": "09-long-cjk-singleline",
+    "desc": "長文CJK単行（折り返し挙動検証）",
+    "code": "flowchart LR\n  A[\"とても長い日本語のラベルで折り返しが発生するか検証\"] --> B[\"次\"]\n"
+  },
+  {
+    "id": "10-td-multiline-cjk",
+    "desc": "TD方向でCJK複数行（高さ方向の見切れ検証）",
+    "code": "flowchart TD\n  A[\"集める ✓<br>(PrimeDrive 自動)\"] --> B[\"整理する<br>(手動 + ✓)\"]\n"
+  }
+]

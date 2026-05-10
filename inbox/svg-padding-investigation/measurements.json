@@ -1,0 +1,312 @@
+[
+  {
+    "id": "01-single-ascii",
+    "nodes": [
+      {
+        "tag": "rect",
+        "shape_w": 141.5,
+        "shape_h": 54,
+        "fo_w": 81.5,
+        "fo_h": 24,
+        "text_sW": 79,
+        "text_sH": 24,
+        "pad_w": 62.5,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "Single Line"
+      },
+      {
+        "tag": "rect",
+        "shape_w": 99.3,
+        "shape_h": 54,
+        "fo_w": 39.3,
+        "fo_h": 24,
+        "text_sW": 38,
+        "text_sH": 24,
+        "pad_w": 61.3,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "Done"
+      }
+    ]
+  },
+  {
+    "id": "02-single-cjk",
+    "nodes": [
+      {
+        "tag": "rect",
+        "shape_w": 108,
+        "shape_h": 54,
+        "fo_w": 48,
+        "fo_h": 24,
+        "text_sW": 49,
+        "text_sH": 24,
+        "pad_w": 59,
+        "pad_h": 30,
+        "text_overflow_fo_w": true,
+        "text": "集める"
+      },
+      {
+        "tag": "rect",
+        "shape_w": 92,
+        "shape_h": 54,
+        "fo_w": 32,
+        "fo_h": 24,
+        "text_sW": 32,
+        "text_sH": 24,
+        "pad_w": 60,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "完了"
+      }
+    ]
+  },
+  {
+    "id": "03-multiline-cjk-br",
+    "nodes": [
+      {
+        "tag": "rect",
+        "shape_w": 189.5,
+        "shape_h": 78,
+        "fo_w": 129.5,
+        "fo_h": 48,
+        "text_sW": 126,
+        "text_sH": 48,
+        "pad_w": 63.5,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "集める ✓(PrimeDrive 自動)"
+      },
+      {
+        "tag": "rect",
+        "shape_w": 124,
+        "shape_h": 54,
+        "fo_w": 64,
+        "fo_h": 24,
+        "text_sW": 65,
+        "text_sH": 24,
+        "pad_w": 59,
+        "pad_h": 30,
+        "text_overflow_fo_w": true,
+        "text": "整理する"
+      }
+    ]
+  },
+  {
+    "id": "04-multiline-cjk-3lines",
+    "nodes": [
+      {
+        "tag": "rect",
+        "shape_w": 172.9,
+        "shape_h": 102,
+        "fo_w": 112.9,
+        "fo_h": 72,
+        "text_sW": 115,
+        "text_sH": 72,
+        "pad_w": 57.9,
+        "pad_h": 30,
+        "text_overflow_fo_w": true,
+        "text": "行1: データ収集行2: 自動連携行3: 確認"
+      },
+      {
+        "tag": "rect",
+        "shape_w": 108,
+        "shape_h": 54,
+        "fo_w": 48,
+        "fo_h": 24,
+        "text_sW": 48,
+        "text_sH": 24,
+        "pad_w": 60,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "次工程"
+      }
+    ]
+  },
+  {
+    "id": "05-multiline-ascii-br",
+    "nodes": [
+      {
+        "tag": "rect",
+        "shape_w": 199.5,
+        "shape_h": 78,
+        "fo_w": 139.5,
+        "fo_h": 48,
+        "text_sW": 135,
+        "text_sH": 48,
+        "pad_w": 64.5,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "First LineSecond Line (auto)"
+      },
+      {
+        "tag": "rect",
+        "shape_w": 93.9,
+        "shape_h": 54,
+        "fo_w": 33.9,
+        "fo_h": 24,
+        "text_sW": 33,
+        "text_sH": 24,
+        "pad_w": 60.9,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "Next"
+      }
+    ]
+  },
+  {
+    "id": "06-rounded-cjk-multi",
+    "nodes": [
+      {
+        "tag": "path",
+        "shape_w": 159.5,
+        "shape_h": 78,
+        "fo_w": 129.5,
+        "fo_h": 48,
+        "text_sW": 126,
+        "text_sH": 48,
+        "pad_w": 33.5,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "集める ✓(PrimeDrive 自動)"
+      },
+      {
+        "tag": "path",
+        "shape_w": 94,
+        "shape_h": 54,
+        "fo_w": 64,
+        "fo_h": 24,
+        "text_sW": 65,
+        "text_sH": 24,
+        "pad_w": 29,
+        "pad_h": 30,
+        "text_overflow_fo_w": true,
+        "text": "整理する"
+      }
+    ]
+  },
+  {
+    "id": "07-stadium-cjk-multi",
+    "nodes": [
+      {
+        "tag": "path",
+        "shape_w": 160.3,
+        "shape_h": 63,
+        "fo_w": 129.5,
+        "fo_h": 48,
+        "text_sW": 126,
+        "text_sH": 48,
+        "pad_w": 34.3,
+        "pad_h": 15,
+        "text_overflow_fo_w": false,
+        "text": "集める ✓(PrimeDrive 自動)"
+      },
+      {
+        "tag": "path",
+        "shape_w": 88.7,
+        "shape_h": 39,
+        "fo_w": 64,
+        "fo_h": 24,
+        "text_sW": 65,
+        "text_sH": 24,
+        "pad_w": 23.7,
+        "pad_h": 15,
+        "text_overflow_fo_w": true,
+        "text": "整理する"
+      }
+    ]
+  },
+  {
+    "id": "08-diamond-cjk-multi",
+    "nodes": [
+      {
+        "tag": "polygon",
+        "shape_w": 207.5,
+        "shape_h": 207.5,
+        "fo_w": 129.5,
+        "fo_h": 48,
+        "text_sW": 126,
+        "text_sH": 48,
+        "pad_w": 81.5,
+        "pad_h": 159.5,
+        "text_overflow_fo_w": false,
+        "text": "集める ✓(PrimeDrive 自動)"
+      },
+      {
+        "tag": "polygon",
+        "shape_w": 118,
+        "shape_h": 118,
+        "fo_w": 64,
+        "fo_h": 24,
+        "text_sW": 65,
+        "text_sH": 24,
+        "pad_w": 53,
+        "pad_h": 94,
+        "text_overflow_fo_w": true,
+        "text": "整理する"
+      }
+    ]
+  },
+  {
+    "id": "09-long-cjk-singleline",
+    "nodes": [
+      {
+        "tag": "rect",
+        "shape_w": 260,
+        "shape_h": 102,
+        "fo_w": 200,
+        "fo_h": 72,
+        "text_sW": 200,
+        "text_sH": 72,
+        "pad_w": 60,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "とても長い日本語のラベルで折り返しが発生するか検証"
+      },
+      {
+        "tag": "rect",
+        "shape_w": 76,
+        "shape_h": 54,
+        "fo_w": 16,
+        "fo_h": 24,
+        "text_sW": 16,
+        "text_sH": 24,
+        "pad_w": 60,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "次"
+      }
+    ]
+  },
+  {
+    "id": "10-td-multiline-cjk",
+    "nodes": [
+      {
+        "tag": "rect",
+        "shape_w": 189.5,
+        "shape_h": 78,
+        "fo_w": 129.5,
+        "fo_h": 48,
+        "text_sW": 126,
+        "text_sH": 48,
+        "pad_w": 63.5,
+        "pad_h": 30,
+        "text_overflow_fo_w": false,
+        "text": "集める ✓(PrimeDrive 自動)"
+      },
+      {
+        "tag": "rect",
+        "shape_w": 129.8,
+        "shape_h": 78,
+        "fo_w": 69.8,
+        "fo_h": 48,
+        "text_sW": 74,
+        "text_sH": 48,
+        "pad_w": 55.8,
+        "pad_h": 30,
+        "text_overflow_fo_w": true,
+        "text": "整理する(手動 + ✓)"
+      }
+    ]
+  }
+]
