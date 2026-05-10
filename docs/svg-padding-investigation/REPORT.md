@@ -31,9 +31,36 @@
 >
 > 両者の差 = フォント不在時のコンシューマ環境での実害イメージ
 
-### 2.0 全ケース横並びスクリーンショット(ホストブラウザ実描画)
+### 2.0 全ケース実寸スクリーンショット(ホストブラウザ実描画、赤枠=SVG ルート境界)
 
-![全ケース 横並び比較](screenshots/all-cases-host-browser.png)
+> **これが本調査でいちばん大事な 1 枚です。** Mermaid が出す SVG を、`max-width` で縮小せずビューポートそのままの寸法で表示したもの。case 10 の Node B「整理する / (手動 + ✓)」だけ `)` の右側が**明確に見切れている**ことが確認できる。
+
+![全ケース 実寸表示](screenshots/all-cases-actual-size-host.png)
+
+#### case 別 視覚的 clip 判定(実寸表示)
+
+| ケース | fo overflow(計測値) | 視覚的 clip | 備考 |
+|---|---|---|---|
+| 01-single-ascii | なし | なし | ASCII はそもそも測定一致 |
+| 02-single-cjk | 集める +1px | **なし** | 1px は実用上分からない |
+| 03-multiline-cjk-br | 整理する +1px | **なし** | 同上 |
+| 04-multiline-cjk-3lines | 行3「確認」 +2.1px | **なし** | 文字が短いので foreignObject の幅に収まる |
+| 05-multiline-ascii-br | なし | なし | |
+| 06-rounded-cjk-multi | 整理する +1px | **なし** | |
+| 07-stadium-cjk-multi | 整理する +1px | **なし** | |
+| 08-diamond-cjk-multi | 整理する +1px | **なし** | ひし形は余白が大きく余裕 |
+| 09-long-cjk-singleline | なし | なし | wrappingWidth=200 で折返し |
+| **10-td-multiline-cjk** | **整理する(手動 + ✓) +4.2px** | **★ あり ★** | `)` の右側が見切れる、`✓` も一部欠ける |
+
+→ **本検証範囲では「+4px 以上のオーバーフローで視覚的 clip が顕在化」する。**「+1〜2px」は数値上は overflow しても、ホストブラウザでの実描画では人間が認知できないレベル。
+
+> 補足: 別環境(GitHub のレンダリング、別フォント環境)では glyph 幅が異なるため、+1〜2px のケースも clip するリスクは残る。GitHub Web で本レポートを見ると case 10 の clip がより派手に出ているとの観察あり。
+
+### 2.0.b 全ケース 縮小比較スクリーンショット(SVG vs PNG 並べ表示)
+
+> 縮小サイズで `max-width:200px` 表示の比較。clip 判定には向かない(縮小されているので)が、SVG(ホスト font)と PNG(Noto Sans CJK JP)の見た目の差は分かりやすい。
+
+![全ケース 縮小比較](screenshots/all-cases-host-browser.png)
 
 ### 2.1 `01-single-ascii` — 単行 ASCII(ベースライン)
 
@@ -176,6 +203,7 @@ flowchart TD
 
 - ノード A: shape 189.5×78 / text 126×48 → **余白 63.5 / 30**
 - ノード B: shape 129.8×78 / text 74×48 → **余白 55.8 / 30**、**fo_w=69.8 vs text=74(+4.2px overflow、本セット最大)**
+- ★ **本ケースのみ実描画で視覚的 clip 発生** ★: `(手動 + ✓)` の `)` 右側が見切れる。foreignObject の境界でテキストがクリップされている(SVG `<foreignObject>` の overflow デフォルトに依存)。↑ §2.0 のスクショで確認できる。
 
 ---
 
@@ -219,14 +247,16 @@ flowchart TD
 
 - **CJK ラベルではホストブラウザの実テキスト幅 > Mermaid 計算幅** が再現された。最大 +4.2px、平均 +1〜2px 程度。
 - ASCII ラベル / 長文単行 CJK では overflow は発生しない(09 は折返しが効いて wrappingWidth=200 で揃う)。
-- **ただし「ノード形状の矩形(shape)」からは絶対に overflow しない**(shape はもともと 60px 余白を持つため、fo の +4px overflow は shape 内に余裕で収まる)。
+- **`<foreignObject>` は内側コンテンツを境界でクリップする**(Chromium 等のブラウザ実装、SVG 1.1 の `overflow:hidden` デフォルトに準拠)。Mermaid は `<foreignObject>` に明示的な `overflow` 属性を付けないが、ブラウザのデフォルトでクリップが効く。
+- そのため **fo overflow > 約 +4px になるとユーザー視認可能な見切れが発生**(本セットの case 10 で実証)。+1〜2px 程度ではホストブラウザの実描画では人間が認知できない。
+- なお shape 矩形からは依然 overflow していない(shape > fo > text の階層なので)。**clip は shape ではなく foreignObject の境界で起きている**ことに注意。
 
 ### 3.3 改修案の主張に対する事実関係
 
 | 改修案の記述 | 実測 | 評価 |
 |---|---|---|
-| 「`foreignObject` の高さ・幅がテキストの実描画サイズより小さく確定し、はみ出した部分が clip される」 | 実際に `fo_w` < `text_sW` は再現(最大 +4.2px)。**だが** Mermaid の生成 SVG には `<foreignObject>` に `overflow:visible` 相当(明示クリップ無し)で出力されており、shape 矩形には 60px の余白があるため、実描画上の視覚的 clip は発生していない | **半分正しい**: 数値オーバーフローは確かに起きるが、視覚的見切れには直結しない |
-| 「ラベルの一部が枠線にめり込む」 | 本セットでは再現せず。すべて shape 矩形内に収まっている | **再現せず**(別フォント / 別ラベルでは起こり得るが、現状の検証範囲では発生しない) |
+| 「`foreignObject` の高さ・幅がテキストの実描画サイズより小さく確定し、はみ出した部分が clip される」 | `fo_w` < `text_sW` は再現(最大 +4.2px)。`<foreignObject>` のデフォルト overflow はブラウザ側で hidden 扱いされるため、case 10 (+4.2px) ではホストブラウザでも視覚的 clip が発生(`)` の右が見切れる) | **正しい**(初版レポートで「半分正しい」と誤評価していたのを訂正) |
+| 「ラベルの一部が枠線にめり込む」 | **case 10 で再現**: 「整理する(手動 + ✓)」の `)` 右側が foreignObject 境界で clip。ただし clip は shape 矩形の境界ではなく **foreignObject 境界**で起きている(shape 矩形は余白に余裕) | **再現**(初版レポートで「再現せず」と書いたのを訂正。`max-width:200px` で縮小したスクショで見落とした) |
 | 「`MERMAID_PADDING` は `svg { padding }` を themeCSS に注入するだけ」 | コード(`src/config.ts:24`, `src/server/server.ts:32`)で事実確認済 | **正しい** |
 | 「ノード単位の余白(`flowchart.nodePadding` / `flowchart.diagramPadding`)には介入していない」 | API は `flowchart.*` を一切受け付けない(構造的にハードコード) | **正しい** |
 | 「`flowchart.nodePadding` (default=8)」 | Mermaid v11 の `config.schema.yaml` に `flowchart.nodePadding` は**存在しない**。flowchart 系の余白キーは `diagramPadding` (8) / `nodeSpacing` (50) / `rankSpacing` (50) / `padding` (15, experimental only) | **誤り**(`nodePadding` は Sankey 専用キー) |
@@ -268,12 +298,13 @@ PNG_RENDER_SCALE=3 のため、画像 1px = SVG 1/3 px。outer_pad の数値を 
 2. **CJK ラベルでホストブラウザ実テキスト幅 > Mermaid 計算幅 が +1〜+4px**: 改修案が指摘する `foreignObject` 寸法ズレは **数値上は再現**(コンシューマ側のフォント差に依存)。
 3. **`MERMAID_PADDING` 環境変数は SVG 形式の外周にしか効かず、ノード余白の制御手段は API として提供されていない**: **再現**。
 
-### 再現できなかった事象
+### 視覚的見切れの再現状況(初版レポートから訂正)
 
-- **「テキストが枠線にめり込む」程の見切れ**: 本セット & 標準的なフォント環境では発生せず。
-  - 数値オーバーフロー (+4px) は起きるが、`shape` 矩形が常に 60px の余白を持っているため、視覚上は枠内に収まる。
-  - 改修案の発端ケース「集める ✓<br>(PrimeDrive 自動)」も、検証では shape 内に余裕を持って収まった。
-  - **配布先環境のフォント / ズーム倍率次第で見切れが現出する可能性は残る**が、その再現条件はもう少し具体化が必要。
+- **case 10「整理する(手動 + ✓)」では視覚的見切れが発生**: foreignObject 境界で `)` の右側がクリップされている(§2.0 実寸スクショで確認)。
+  - **メカニズム**: `<foreignObject>` のデフォルト overflow がブラウザ側で hidden 扱いされるため、Mermaid が計算した foreignObject 寸法(69.8px)より実描画テキスト幅(74px)が大きいと、はみ出した部分がクリップされる。clip は shape 矩形ではなく foreignObject の境界で起きる(shape は余白が残っている)。
+  - 改修案の発端ケース「集める ✓<br>(PrimeDrive 自動)」は本検証(ホストブラウザ・WenQuanYi)では shape 内に収まっており、視覚的 clip は出なかった。**ただし配布先(GitHub Web 等の別フォント環境)では出る可能性がある**(GitHub での実視認では case 10 でより顕著に clip するとのユーザー観察あり)。
+- **case 02/03/06/07/08(+1px)、case 04(+2.1px)では視覚的 clip は出ていない**: 数値上の overflow は人間が視認できないレベル。
+- **+4px overflow が視覚的 clip 発生のおおよその閾値**(本検証範囲)。フォント差・拡大率次第で +1〜2px のケースも将来 clip する可能性が残る(=潜在リスク)。
 
 ### 改修方針への含意(再確認)
 
@@ -301,7 +332,8 @@ docs/svg-padding-investigation/
 │   ├── 01..10-*.png                  (取得した PNG)
 │   └── index.html                    (横並びインスペクション)
 ├── screenshots/
-│   └── all-cases-host-browser.png    (ホストブラウザ全画面スクショ)
+│   ├── all-cases-host-browser.png    (縮小表示 SVG vs PNG 横並びスクショ)
+│   └── all-cases-actual-size-host.png (★ 実寸表示 — case 10 の clip が確認できる)
 └── scripts/
     ├── cases.json                    (ケース定義)
     ├── render_all.sh                 (API へ POST して保存)
