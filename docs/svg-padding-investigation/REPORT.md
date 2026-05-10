@@ -22,18 +22,166 @@
 
 テストケース: `scripts/cases.json` の 10 ケース(単行 ASCII、単行 CJK、複数行 CJK + `<br>`、複数行 ASCII + `<br>`、角丸・スタジアム・ひし形、長文 CJK、TD 方向 など)。
 
-成果物:
-- 入力: `cases/*.mmd`
-- 出力: `renders/*.svg`, `renders/*.png`
-- インスペクション HTML: `renders/index.html`(SVG/PNG 横並び)
-- ブラウザ全画面スクショ: `screenshots/all-cases-host-browser.png`
-- 計測 JSON: `measurements.json`(SVG)、`png_measurements.json`(PNG)
+---
+
+## 2. ビジュアルギャラリー(各ケースの実出力)
+
+> 左 = **SVG**(コンシューマ側ブラウザで描画される姿。GitHub 上では GitHub のフォントで描画される=Noto Sans CJK JP は基本無し)  
+> 右 = **PNG**(サーバ rasterize 結果。Noto Sans CJK JP で描画。"見た目の正解"側)  
+>
+> 両者の差 = フォント不在時のコンシューマ環境での実害イメージ
+
+### 2.0 全ケース横並びスクリーンショット(ホストブラウザ実描画)
+
+![全ケース 横並び比較](screenshots/all-cases-host-browser.png)
+
+### 2.1 `01-single-ascii` — 単行 ASCII(ベースライン)
+
+```mermaid
+flowchart LR
+  A["Single Line"] --> B["Done"]
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/01-single-ascii.svg) | ![](renders/01-single-ascii.png) |
+
+- ノード A: shape 141.5×54 / text 79×24 → **余白 62.5 / 30**
+- ノード B: shape 99.3×54 / text 38×24 → **余白 61.3 / 30**
+- foreignObject overflow: なし
+
+### 2.2 `02-single-cjk` — 単行 CJK
+
+```mermaid
+flowchart LR
+  A["集める"] --> B["完了"]
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/02-single-cjk.svg) | ![](renders/02-single-cjk.png) |
+
+- ノード A「集める」: shape 108×54 / text 49×24 → **余白 59 / 30**、**fo_w=48.0 vs text=49(+1px overflow)**
+- ノード B「完了」: shape 92×54 / text 32×24 → **余白 60 / 30**
+
+### 2.3 `03-multiline-cjk-br` — 改修案で報告された見切れケース「集める ✓<br>(PrimeDrive 自動)」
+
+```mermaid
+flowchart LR
+  A["集める ✓<br>(PrimeDrive 自動)"] --> B["整理する"]
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/03-multiline-cjk-br.svg) | ![](renders/03-multiline-cjk-br.png) |
+
+- ノード A: shape 189.5×78 / text 126×48 → **余白 63.5 / 30**
+- ノード B「整理する」: shape 124×54 / text 65×24 → **余白 59 / 30**、**fo_w=64.0 vs text=65(+1px overflow)**
+- 改修案が「枠線にめり込む」と報告したケースだが、本検証セットでは shape 矩形に余裕がありはみ出していない
+
+### 2.4 `04-multiline-cjk-3lines` — 3 行 CJK + `<br>`
+
+```mermaid
+flowchart LR
+  A["行1: データ収集<br>行2: 自動連携<br>行3: 確認"] --> B["次工程"]
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/04-multiline-cjk-3lines.svg) | ![](renders/04-multiline-cjk-3lines.png) |
+
+- ノード A: shape 172.9×102 / text 115×72 → **余白 57.9 / 30**、**fo_w=112.9 vs text=115(+2.1px overflow)**
+
+### 2.5 `05-multiline-ascii-br` — 2 行 ASCII + `<br>`(CJK 起因か検証用)
+
+```mermaid
+flowchart LR
+  A["First Line<br>Second Line (auto)"] --> B["Next"]
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/05-multiline-ascii-br.svg) | ![](renders/05-multiline-ascii-br.png) |
+
+- ノード A: shape 199.5×78 / text 135×48 → **余白 64.5 / 30**
+- foreignObject overflow: **なし**(ASCII は計算ズレが出ない)
+
+### 2.6 `06-rounded-cjk-multi` — 角丸ノードで CJK 複数行
+
+```mermaid
+flowchart LR
+  A("集める ✓<br>(PrimeDrive 自動)") --> B("整理する")
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/06-rounded-cjk-multi.svg) | ![](renders/06-rounded-cjk-multi.png) |
+
+- ノード A (path): shape 159.5×78 / text 126×48 → **余白 33.5 / 30**(rect より横余白が半減)
+- ノード B (path): shape 94×54 / text 65×24 → **余白 29 / 30**、**+1px fo overflow**
+
+### 2.7 `07-stadium-cjk-multi` — スタジアム形で CJK 複数行
+
+```mermaid
+flowchart LR
+  A(["集める ✓<br>(PrimeDrive 自動)"]) --> B(["整理する"])
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/07-stadium-cjk-multi.svg) | ![](renders/07-stadium-cjk-multi.png) |
+
+- ノード A (path): shape 160.3×63 / text 126×48 → **余白 34.3 / 15**(縦余白も半減!)
+- ノード B (path): shape 88.7×39 / text 65×24 → **余白 23.7 / 15**
+
+### 2.8 `08-diamond-cjk-multi` — ひし形で CJK 複数行(極端例)
+
+```mermaid
+flowchart LR
+  A{"集める ✓<br>(PrimeDrive 自動)"} --> B{"整理する"}
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/08-diamond-cjk-multi.svg) | ![](renders/08-diamond-cjk-multi.png) |
+
+- ノード A (polygon): shape **207.5×207.5** / text 126×48 → **余白 81.5 / 159.5**(縦に巨大な余白)
+- ノード B (polygon): shape 118×118 / text 65×24 → **余白 53 / 94**
+- ひし形は形状特性で外接矩形が大きくなる。テキストが大きさのわりに小さく見える
+
+### 2.9 `09-long-cjk-singleline` — 長文 CJK 単行(折り返し検証)
+
+```mermaid
+flowchart LR
+  A["とても長い日本語のラベルで折り返しが発生するか検証"] --> B["次"]
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/09-long-cjk-singleline.svg) | ![](renders/09-long-cjk-singleline.png) |
+
+- ノード A: shape 260×102 / text 200×72(`wrappingWidth=200` で折り返し)→ **余白 60 / 30**
+- ノード B「次」: shape 76×54 / text 16×24 → **余白 60 / 30**(極小ラベルでも余白は同じ → 視覚的に「余白だらけ」)
+
+### 2.10 `10-td-multiline-cjk` — TD 方向で CJK 複数行(高さ方向検証)
+
+```mermaid
+flowchart TD
+  A["集める ✓<br>(PrimeDrive 自動)"] --> B["整理する<br>(手動 + ✓)"]
+```
+
+| SVG | PNG |
+|---|---|
+| ![](renders/10-td-multiline-cjk.svg) | ![](renders/10-td-multiline-cjk.png) |
+
+- ノード A: shape 189.5×78 / text 126×48 → **余白 63.5 / 30**
+- ノード B: shape 129.8×78 / text 74×48 → **余白 55.8 / 30**、**fo_w=69.8 vs text=74(+4.2px overflow、本セット最大)**
 
 ---
 
-## 2. 計測サマリ — SVG (ホストブラウザ実描画)
+## 3. 計測サマリ — SVG (ホストブラウザ実描画)
 
-### 2.1 ノード矩形 (shape) と テキスト実寸 (scrollWidth/Height) の差 = 「ノード内余白」
+### 3.1 ノード矩形 (shape) と テキスト実寸 (scrollWidth/Height) の差 = 「ノード内余白」
 
 | ケース | 形状 | shape (W×H) | text (W×H) | **余白 W / H** | 形状種別 |
 |---|---|---|---|---|---|
@@ -58,7 +206,7 @@
 - **`path`(stadium/rounded)では横余白がほぼ半減(33–34px)、縦余白も 15px に減る。** 形状の計算方法が異なるため。
 - **`polygon`(ひし形)は形状特性上、外接矩形が大きくなる(159.5px の縦余白)。** ユーザー視点では「ひし形使うと余白が酷い」となる。
 
-### 2.2 `foreignObject` 公称サイズ vs テキスト実描画サイズ
+### 3.2 `foreignObject` 公称サイズ vs テキスト実描画サイズ
 
 `foreignObject` は Mermaid がサーバ側のフォント(Noto Sans CJK JP)で測定した値で固定されているが、ホストブラウザは WenQuanYi で描画するので幅がズレる:
 
@@ -73,7 +221,7 @@
 - ASCII ラベル / 長文単行 CJK では overflow は発生しない(09 は折返しが効いて wrappingWidth=200 で揃う)。
 - **ただし「ノード形状の矩形(shape)」からは絶対に overflow しない**(shape はもともと 60px 余白を持つため、fo の +4px overflow は shape 内に余裕で収まる)。
 
-### 2.3 改修案の主張に対する事実関係
+### 3.3 改修案の主張に対する事実関係
 
 | 改修案の記述 | 実測 | 評価 |
 |---|---|---|
@@ -85,7 +233,7 @@
 
 ---
 
-## 3. 計測サマリ — PNG (サーバ rasterize、scale=3)
+## 4. 計測サマリ — PNG (サーバ rasterize、scale=3)
 
 PNG_RENDER_SCALE=3 のため、画像 1px = SVG 1/3 px。outer_pad の数値を 3 で割れば SVG 座標系の余白に近い:
 
@@ -109,19 +257,6 @@ PNG_RENDER_SCALE=3 のため、画像 1px = SVG 1/3 px。outer_pad の数値を 
 - **`MERMAID_PADDING=20` の効果は PNG では確認しづらい**: PNG bbox は viewBox + diagram の bbox で決まるため、CSS padding は SVG ルートのスタイルとして残るが mmdc の PNG 出力ではトリミングされている可能性が高い(20px のはずが ~7px しか出ていない)。
 
 → **`MERMAID_PADDING` は SVG 形式でしか実質的に効いておらず、しかも SVG 外周にしか作用しない**(改修案の指摘どおり)。
-
----
-
-## 4. 視覚確認 (`screenshots/all-cases-host-browser.png`)
-
-- **左列**: SVG をホストブラウザ(Noto Sans CJK JP **なし**、WenQuanYi 描画)で表示。 `max-width:200px` の縮小表示。
-- **右列**: PNG(サーバ rasterize、Noto Sans CJK JP あり)、フルサイズ。
-
-視認できた事項:
-
-1. **全ケースでテキストが枠内に収まっている**(SVG 側でも見切れ無し)。改修案で報告されている「枠線にめり込む」事象は、本検証セット & 標準フォント環境では発生しなかった。
-2. **PNG / SVG いずれもノードの内側余白が広く感じる**(片側 30px 横 / 15px 縦)。とくに `flowchart LR` で `<br>` 改行を入れない短いラベル(02 / 09 の B ノード「完了」「次」)は枠の半分以上が余白で、ユーザーの「余白多すぎ」主張と整合。
-3. **ひし形(case 08)** は外接矩形の特性上、ラベルに対して矩形が極端に大きい。これは Mermaid の形状ジオメトリで、`flowchart.padding` を弄っても改善は限定的。
 
 ---
 
