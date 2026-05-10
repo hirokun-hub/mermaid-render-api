@@ -156,7 +156,7 @@ PNG_RENDER_SCALE=3 のため、画像 1px = SVG 1/3 px。outer_pad の数値を 
 ## 6. 添付ファイル一覧
 
 ```
-inbox/svg-padding-investigation/
+docs/svg-padding-investigation/
 ├── REPORT.md                         (本ファイル)
 ├── measurements.json                 (SVG 計測 raw)
 ├── png_measurements.json             (PNG 計測 raw)
