@@ -109,17 +109,28 @@ sequenceDiagram
 ### 2.3 アーキテクチャ判断の根拠
 
 - **Programmatic_API 採用** ← C-M-05(`mmdc` に inline config 渡しフラグが無く、リクエスト毎の設定差替えに毎回ファイル書出しが必要)+ NFR-01(レイテンシ目標) + REQ-U-08(Browser_Pool 常駐) を同時に解決するため。
-- **Browser_Pool** ← Puppeteer/Chromium 起動が支配的コストで、リクエスト間で共有可能(`renderMermaid(browser, ...)` のシグネチャ)。
-- **semver 対象外リスク(C-M-07)** ← NFR-02 で `@mermaid-js/mermaid-cli@^11.12.0` を継続採用し、依存バージョンを `package.json` で pinning。テスト用 Docker で先行検証(NFR-03)してから本番差替えで吸収。
+- **Browser_Pool** ← Puppeteer/Chromium 起動が支配的コストで、リクエスト間で共有可能(`renderMermaid(Browser | BrowserContext, ...)` のシグネチャ、C-M-08 PR #768)。本改修では BrowserContext 単位で pool を構成し、context recycle で長時間稼働時のメモリリークを防ぐ。
+- **semver 対象外リスク(C-M-07 / C-M-08 / C-M-09)** ← NFR-02 で `@mermaid-js/mermaid-cli` を **`11.12.0` 等の exact version で pin**(caret / tilde 不可)+ `package-lock.json` コミット + `npm ci`。Renovate 手動承認、更新 PR で画像差分テスト + property test + 性能ベンチ必須。テスト用 Docker で先行検証(NFR-03)してから本番差替えで吸収。緊急時は `RENDERER_MODE=cli` フォールバック(NFR-06)。
 - **`htmlLabels: true` 維持** ← C-M-03 で v11.11+ に複数 Approved Bug が open。`themeCSS` の `foreignObject overflow visible` で代替対応(G-2)。
 
 ## 3. コンポーネント設計
 
 ### 3.1 `src/config.ts` の拡張
 
-#### 既存定数の維持
+#### 既存定数の維持と役割整理
 
-`DEFAULT_TIMEOUT_MS` / `MAX_CONCURRENT_RENDERERS` / `MAX_CODE_SIZE` / `TEMP_DIR` / `SUPPORTED_FORMATS` / `PUPPETEER_CONFIG_PATH` / `PNG_RENDER_SCALE` / `MERMAID_CONFIG_PATH` は現状の責務のまま継続。`toPositiveInt()` ユーティリティも継承。
+`toPositiveInt()` ユーティリティは継承。既存環境変数 / 定数の役割は以下のとおり再整理する:
+
+| 既存シンボル | 通常経路(Programmatic) | CLI fallback 経路 | 状態 |
+|---|---|---|---|
+| `DEFAULT_TIMEOUT_MS` | 有効(リクエスト `timeout_ms` の default) | 有効 | 維持 |
+| `MAX_CODE_SIZE` | 有効(入力バイト上限、`BODY_LIMIT_BYTES` 導出元) | 有効 | 維持 |
+| `SUPPORTED_FORMATS` | 有効 | 有効 | 維持(`['svg', 'png']`) |
+| `PNG_RENDER_SCALE` | 有効 | 有効 | 維持 |
+| `TEMP_DIR` | **未使用**(一時ファイル不要、Programmatic はオブジェクト直渡し) | 有効(`mmdc --configFile` 出力用) | CLI fallback 専用 |
+| `MERMAID_CONFIG_PATH` | **未使用**(リクエスト毎にオブジェクトで直渡し) | 有効(`mmdc -c <path>`) | CLI fallback 専用 |
+| `PUPPETEER_CONFIG_PATH` | **未使用**(Browser_Pool が直接 Puppeteer を起動) | 有効(`mmdc -p <path>`) | CLI fallback 専用 |
+| `MAX_CONCURRENT_RENDERERS` | **`RATE_LIMIT_MAX_INFLIGHT` に役割移行**(下記新規定数参照)。後方互換のため env 名は継続受理し、`RATE_LIMIT_MAX_INFLIGHT` 未設定時の default として参照 | 同左 | **deprecated alias**(env 名は受理、内部は `RATE_LIMIT_MAX_INFLIGHT` に統一) |
 
 #### 新規追加
 
@@ -222,19 +233,23 @@ Programmatic 側が壊れた場合(import 失敗、`renderMermaid` signature 変
 
 ```ts
 class BrowserPool {
-  // page 単位の semaphore。Puppeteer browser は少数(1〜2)で page を BROWSER_POOL_SIZE 個保持
-  // acquire は POOL_QUEUE_MAX まで wait、POOL_WAIT_TIMEOUT_MS で 503
-  async acquire(): Promise<Page>
-  release(page: Page): void   // maxUses 到達 page は破棄して再生成
+  // BrowserContext 単位の semaphore。
+  // Puppeteer browser は少数(1〜2)で、各 browser が複数 BrowserContext を hosting する。
+  // BROWSER_POOL_SIZE = 同時 render 可能な BrowserContext 数(default 4)。
+  // acquire は POOL_QUEUE_MAX まで wait、POOL_WAIT_TIMEOUT_MS で 503。
+  // renderMermaid は Browser | BrowserContext を受理する(C-M-08 PR #768)ため、
+  // 取得した BrowserContext をそのまま renderMermaid に渡す。
+  async acquire(): Promise<BrowserContext>
+  release(ctx: BrowserContext): void   // maxUses 到達時は当該 context を破棄→新規生成
   async close(): Promise<void>
-  // ヘルスチェック: page.evaluate('1') で生存確認、失敗 page を除外(REQ-S-02)
+  // ヘルスチェック: ctx.newPage().evaluate('1') で生存確認、失敗 context を除外(REQ-S-02)
 }
 ```
 
-**Page recycle policy(C-P-02)**:
-- 1 page あたり `MAX_RENDERS_PER_PAGE`(default 100)回 render で破棄→再生成
-- 1 browser あたり `MAX_RENDERS_PER_BROWSER`(default 1000)render または `MAX_BROWSER_AGE_MS`(default 60 分)で recycle
-- render 失敗 / timeout / navigation error 時は即座に当該 page を破棄
+**Context / Browser recycle policy(C-P-02)**:
+- 1 BrowserContext あたり `MAX_RENDERS_PER_PAGE`(default 100)回 render で context 破棄 → 同 browser 配下に新規 context 生成
+- 1 browser あたり `MAX_RENDERS_PER_BROWSER`(default 1000)render または `MAX_BROWSER_AGE_MS`(default 60 分)で browser 全体を recycle(全 context 破棄 → browser 再起動)
+- render 失敗 / timeout / navigation error 時は即座に当該 context を破棄
 
 **Puppeteer launch args 標準セット(C-P-01, C-P-04)**:
 ```ts
@@ -253,15 +268,17 @@ class BrowserPool {
 }
 ```
 
-**Request interception(C-S-05)**: 全 page に対し以下を必須適用
+**Request interception(C-S-05)**: BrowserContext 生成直後の hook で、`renderMermaid` が内部で生成する全 page に対して interception を有効化する(`browser.on('targetcreated')` で context 配下の page 作成を捕捉して適用、または `ctx.overridePermissions(...)` と合わせて context レベルで net request を deny)。実装は以下と等価:
 ```ts
-await page.setRequestInterception(true)
-page.on('request', req => {
-  const url = req.url()
-  if (url.startsWith('data:') || url.startsWith('about:') || url.startsWith('blob:')) {
-    return req.continue()
-  }
-  return req.abort()  // http/https/file 全遮断(SSRF 対策)
+context.on('page', async (page) => {
+  await page.setRequestInterception(true)
+  page.on('request', req => {
+    const url = req.url()
+    if (url.startsWith('data:') || url.startsWith('about:') || url.startsWith('blob:')) {
+      return req.continue()
+    }
+    return req.abort()  // http/https/file 全遮断(SSRF 対策)
+  })
 })
 ```
 
@@ -296,7 +313,7 @@ interface RenderResult {
 ```
 
 実装:
-- `renderMermaid(browser, code, format, { mermaidConfig, svgId, ... })` を呼出する。ただし `post_process.rewrite_ids === false` の場合は `svgId` を渡さない(省略して Mermaid 既定の `mermaid-1` 等を使わせる、§7.1.1)
+- `BrowserPool.acquire()` で取得した `BrowserContext` をそのまま `renderMermaid(ctx, code, format, { mermaidConfig, svgId, ... })` に渡す。ただし `post_process.rewrite_ids === false` の場合は `svgId` を渡さない(省略して Mermaid 既定の `mermaid-1` 等を使わせる、§7.1.1)
 - 例外/エラーは `extractMermaidError()`(下記 §6)で構造化
 - 成功時に `postProcess` を適用(§7)
 - 一時ファイル不要(`mmdc --configFile` ルート廃止)

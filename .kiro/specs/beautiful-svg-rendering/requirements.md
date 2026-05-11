@@ -30,8 +30,8 @@
 - **Beautiful_Defaults**: 配布 HTML embed 用途で美しく出力するためのサーバ側既定 Mermaid 設定の総称
 - **Mermaid_Config_Override**: リクエストで明示指定される Mermaid 公式設定の部分集合
 - **Post_Process_Option**: SVG 生成時または生成後にサーバ側で適用する後処理オプションの総称(ID 一意化、`max-width` 除去等)
-- **Browser_Pool**: Puppeteer ブラウザインスタンスをリクエスト間で共有する内部仕組み
-- **Programmatic_API**: `@mermaid-js/mermaid-cli` が export する `renderMermaid` 関数(Puppeteer ブラウザを引数に取り、`mmdc` subprocess を起動しない)
+- **Browser_Pool**: Puppeteer の **BrowserContext** をリクエスト間で再利用する内部仕組み(少数の `Browser` インスタンスが多数の `BrowserContext` を hosting し、`BrowserContext` 単位で同時実行を制御する)
+- **Programmatic_API**: `@mermaid-js/mermaid-cli` が export する `renderMermaid` 関数(`Browser | BrowserContext` を第 1 引数に取り、`mmdc` subprocess を起動しない。本改修では `BrowserContext` 単位で渡す)
 - **Server_Locked_Setting**: ユーザーが上書き不可能なサーバ側固定設定(セキュリティ目的)
 
 ### 1.5 本ドキュメントの読み方
@@ -72,9 +72,9 @@
 - **C-S-01**: 入力 Mermaid テキストは信用してはならない(AI 生成想定)。`securityLevel` は `strict` を Server_Locked_Setting としてサーバ側で固定し、リクエストでの上書きを許可してはならない。
 - **C-S-02**: Mermaid の `maxTextSize`(schema デフォルト 50000)と `maxEdges`(schema デフォルト 500)を遵守する。
 - **C-S-03**: 親要件定義書 §3「入力検証」で定めた入力サイズ上限(現状 `MAX_CODE_SIZE=50KB`)を本改修でも遵守する。Express の `express.json()` の `limit` は **`MAX_CODE_SIZE` 由来の式で導出**(`BODY_LIMIT = MAX_CODE_SIZE × 2 + 16KB`)し、ハードコード値との二重管理を避ける。`{ strict: true }` を併用。
-- **C-S-06**: BrowserPool 導入により `timeout_ms` はブラウザリソース占有時間に直結する。上限なしの `timeout_ms` 受理は **プール枯渇攻撃の入口**となるため、validator 層で `[MIN_TIMEOUT_MS=1000, MAX_TIMEOUT_MS=30000]` の範囲外を `invalid_request` として拒否する。
-- **C-S-04**: ユーザー入力 JSON とサーバ既定設定の deep merge は **Prototype Pollution 脆弱性の典型的入口**([CVE-2019-10744](https://security.snyk.io/vuln/SNYK-JS-LODASH-450202) で `lodash.defaultsDeep` が CVSS 9.1、[CVE-2018-16487](https://security.snyk.io/vuln/SNYK-JS-LODASHMERGE-173732) で `lodash.merge` 同様の実績)。`mermaid_config` のマージでは禁止キー `__proto__` / `constructor` / `prototype` を **再帰的に拒否**する `safeDeepMerge` を必須とし、base は `Object.create(null)` で開始する。Node.js 起動オプション `NODE_OPTIONS="--disable-proto=delete"` の併用が defense in depth として推奨される(OWASP)。
+- **C-S-04**: ユーザー入力 JSON とサーバ既定設定の deep merge は **Prototype Pollution 脆弱性の典型的入口**([CVE-2019-10744](https://security.snyk.io/vuln/SNYK-JS-LODASH-450202) で `lodash.defaultsDeep` が CVSS 9.1、[CVE-2018-16487](https://security.snyk.io/vuln/SNYK-JS-LODASHMERGE-173732) で `lodash.merge` 同様の実績)。`mermaid_config` のマージでは禁止キー `__proto__` / `constructor` / `prototype` を **検出時に該当キーのみ merge 対象から除外し、警告コード `prototype_pollution_attempt` を記録、リクエスト処理は継続**する(REQ-UN-06)。base は `Object.create(null)` で開始。Node.js 起動オプション `NODE_OPTIONS="--disable-proto=delete"` の併用が defense in depth として推奨される(OWASP)。
 - **C-S-05**: Puppeteer/Chromium 上で Mermaid コードを評価する構成は **untrusted JS 評価相当のリスク**を伴う。レンダリング page では Puppeteer の **request interception で外部ネットワーク通信(`http:` / `https:` / `file:`)を遮断**し、`data:` / `about:` / `blob:` のみ allow すること(SSRF / クラウドメタデータエンドポイントへの到達防止)。
+- **C-S-06**: BrowserPool 導入により `timeout_ms` はブラウザリソース占有時間に直結する。上限なしの `timeout_ms` 受理は **プール枯渇攻撃の入口**となるため、validator 層で `[MIN_TIMEOUT_MS=1000, MAX_TIMEOUT_MS=30000]` の範囲外を `invalid_request` として拒否する。
 
 ### 2.4 Puppeteer / Chromium 運用上の制約
 
@@ -346,19 +346,28 @@ THE System SHALL Beautiful_Defaults において `layout: "elk"` を既定とし
 
 親要件「要件 10」の使い分けを継承し、以下を追加する:
 
-- **503**: Browser_Pool 未初期化または全インスタンス不能(REQ-S-01 / REQ-S-02)
-  - `error_type=service_unavailable`
+- **400**: バリデーション失敗(`error_type=invalid_request`)。`error_field` / `error_constraint` を併せて返却(REQ-U-05、`timeout_ms` 範囲外含む、C-S-06)
+- **429**: HTTP 層の同時受付上限(`RATE_LIMIT_MAX_INFLIGHT`)超過(REQ-S-03)。`error_type=rate_limited` + **`Retry-After` ヘッダ**を付与
+- **503**: 次のいずれかで `error_type=service_unavailable` + **`Retry-After` ヘッダ**:
+  - Browser_Pool 未初期化または全インスタンス不能(REQ-S-01 / REQ-S-02)
+  - BrowserPool acquire の wait queue 満杯(`POOL_QUEUE_MAX` 超)または wait timeout(`POOL_WAIT_TIMEOUT_MS` 経過)(REQ-S-03)
 
-### 5.2 GET /healthz
+### 5.2 観測可能性関連エンドポイント(NFR-05)
 
-親要件定義書「要件 8」を継承(変更なし)。
+| パス | 用途 | 後方互換 |
+|---|---|---|
+| `GET /healthz` | 親要件「要件 8」継承(`/readyz` 相当) | **維持**(変更なし) |
+| `GET /livez` | **新規**。プロセス liveness、常に 200 を返す | 新規追加 |
+| `GET /readyz` | **新規**。BrowserPool が 1 page 以上 acquire 可能かつ直近 5 分エラー率 < 50% で 200、それ以外 503 | 新規追加 |
+| `GET /metrics` | **新規**。Prometheus 互換テキストで NFR-05 のメトリクスを expose | 新規追加 |
 
 ### 5.3 後方互換性ポリシー
 
 - **リクエスト形状**: 既存の最小リクエストを引き続き受理し、HTTP 200 を返す(REQ-U-02)
 - **レスポンス形状**: 既存フィールドはすべて維持。本改修ではフィールドを**追加するのみ**で削除・改名はしない
 - **出力バイト互換**: **保証しない**。Beautiful_Defaults 適用により SVG/PNG の見た目は変わる(US-01〜US-03 の達成のため意図された変更)
-- **エラーレスポンス**: 既存フィールドはすべて維持し、`error_message` / `line` を追加する形
+- **エラーレスポンス**: 既存フィールド(`request_id` / `error_type` / `status_code` / `stderr` / `exit_code` / `format`)はすべて維持し、`error_message` / `line` / `error_field` / `error_constraint` の 4 フィールドを追加する形
+- **エンドポイント**: 既存 `/healthz` は維持。`/livez` / `/readyz` / `/metrics` は新規追加(既存クライアントへの影響なし)
 
 ## 6. 受入基準サマリ(横断確認用)
 
