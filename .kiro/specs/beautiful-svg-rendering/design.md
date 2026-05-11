@@ -129,7 +129,18 @@ sequenceDiagram
 | `CONTENT_TYPE_MAP` | `Readonly<Record<'svg'\|'png', string>>` | DRY 改善: `server/app.ts` ローカル定義を集約 |
 | `BEAUTIFUL_DEFAULTS` | `Readonly<MermaidConfig>` | Beautiful_Defaults の単一情報源 |
 | `SERVER_LOCKED_SETTINGS` | `Readonly<MermaidConfig>` | Server_Locked_Setting の単一情報源 |
-| `BROWSER_POOL_SIZE` | `number`(env: `BROWSER_POOL_SIZE`、default `MAX_CONCURRENT_RENDERERS` と同値) | Browser_Pool のサイズ |
+| `BROWSER_POOL_SIZE` | `number`(env: `BROWSER_POOL_SIZE`、default `4`、page 単位) | Browser_Pool のサイズ(同時 render 可能 page 数) |
+| `RATE_LIMIT_MAX_INFLIGHT` | `number`(env、default `15`) | HTTP 層の同時受付上限。超過は **即時 429** + `Retry-After`(REQ-S-03) |
+| `POOL_QUEUE_MAX` | `number`(env、default `20`) | Pool acquire の wait queue 上限。超過は **503** + `Retry-After`(REQ-S-03) |
+| `POOL_WAIT_TIMEOUT_MS` | `number`(env、default `3000`) | Pool acquire の wait timeout。超過は **503** + `Retry-After`(REQ-S-03) |
+| `MIN_TIMEOUT_MS` | `number` const = `1000` | リクエスト `timeout_ms` 下限(C-S-06) |
+| `MAX_TIMEOUT_MS` | `number`(env、default `30000`) | リクエスト `timeout_ms` 上限(C-S-06) |
+| `MAX_RENDERS_PER_PAGE` | `number`(env、default `100`) | page 単位の recycle 閾値(C-P-02) |
+| `MAX_RENDERS_PER_BROWSER` | `number`(env、default `1000`) | browser 単位の recycle 閾値(C-P-02) |
+| `MAX_BROWSER_AGE_MS` | `number`(env、default `3600000`、60 分) | browser 単位の最長存続時間(C-P-02) |
+| `RESERVED_BODY_OVERHEAD_BYTES` | `number` const = `16384` | Express body limit 算出時の余裕代(C-S-03) |
+| `BODY_LIMIT_BYTES` | 関数導出 = `MAX_CODE_SIZE * 2 + RESERVED_BODY_OVERHEAD_BYTES` | Express `express.json({ limit })` への入力(C-S-03) |
+| `RENDERER_MODE` | `'programmatic' \| 'cli'`(env、default `'programmatic'`) | レンダラ実装の切替(NFR-06) |
 | `MAX_THEME_CSS_LENGTH` | `number` const = `4096` | `themeCSS` 入力の上限長(REQ-UN-05) |
 | `THEME_CSS_FORBIDDEN_PATTERNS` | `readonly string[]` | `themeCSS` 入力の禁止部分文字列リスト(下記 §3.3 参照) |
 | `MERMAID_PADDING` | 既存維持、default を `0` に変更 | C-H-02 と整合(SVG ルート CSS padding 廃止) |
@@ -182,19 +193,81 @@ export function buildRequestMermaidConfig(
 
 ### 3.2 `src/renderer/mermaidRenderer.ts` の刷新
 
+#### レンダラ実装は `MermaidRendererAdapter` で隔離(NFR-06)
+
+```ts
+// src/renderer/mermaidRendererAdapter.ts
+interface MermaidRendererAdapter {
+  render(input: RenderInput): Promise<RenderResult>
+  close(): Promise<void>
+}
+
+// 主実装: Programmatic API + BrowserPool
+class ProgrammaticAdapter implements MermaidRendererAdapter { ... }
+
+// 緊急時 fallback: 従来 mmdc subprocess
+class CliFallbackAdapter implements MermaidRendererAdapter { ... }
+
+// env RENDERER_MODE で切替
+export function createRenderer(): MermaidRendererAdapter {
+  return process.env.RENDERER_MODE === 'cli'
+    ? new CliFallbackAdapter()
+    : new ProgrammaticAdapter()
+}
+```
+
+Programmatic 側が壊れた場合(import 失敗、`renderMermaid` signature 変化、`Buffer → Uint8Array` 等の C-M-08 系破壊変更)に、env 変更 + コンテナ再起動だけで `cli` モードへ即時切替可能。アプリ本体は adapter インターフェースだけを参照する。
+
 #### `BrowserPool` クラス(新規 `src/renderer/browserPool.ts`)
 
 ```ts
 class BrowserPool {
-  // Puppeteer ブラウザインスタンスを BROWSER_POOL_SIZE 個保持
-  // Promise.race ベースで acquire / release
-  async acquire(): Promise<Browser>
-  release(browser: Browser): void
+  // page 単位の semaphore。Puppeteer browser は少数(1〜2)で page を BROWSER_POOL_SIZE 個保持
+  // acquire は POOL_QUEUE_MAX まで wait、POOL_WAIT_TIMEOUT_MS で 503
+  async acquire(): Promise<Page>
+  release(page: Page): void   // maxUses 到達 page は破棄して再生成
   async close(): Promise<void>
-  // ヘルスチェック: page.evaluate('1') で生存確認、失敗インスタンスを除外
-  // REQ-S-02 を実現
+  // ヘルスチェック: page.evaluate('1') で生存確認、失敗 page を除外(REQ-S-02)
 }
 ```
+
+**Page recycle policy(C-P-02)**:
+- 1 page あたり `MAX_RENDERS_PER_PAGE`(default 100)回 render で破棄→再生成
+- 1 browser あたり `MAX_RENDERS_PER_BROWSER`(default 1000)render または `MAX_BROWSER_AGE_MS`(default 60 分)で recycle
+- render 失敗 / timeout / navigation error 時は即座に当該 page を破棄
+
+**Puppeteer launch args 標準セット(C-P-01, C-P-04)**:
+```ts
+{
+  headless: 'shell',
+  args: [
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--disable-extensions',
+    '--disable-background-timer-throttling',
+    '--disable-renderer-backgrounding',
+    '--font-render-hinting=none',
+    // '--no-sandbox' は付けない(C-P-01)。Docker 側 seccomp/AppArmor で隔離
+  ],
+  protocolTimeout: 30000,
+}
+```
+
+**Request interception(C-S-05)**: 全 page に対し以下を必須適用
+```ts
+await page.setRequestInterception(true)
+page.on('request', req => {
+  const url = req.url()
+  if (url.startsWith('data:') || url.startsWith('about:') || url.startsWith('blob:')) {
+    return req.continue()
+  }
+  return req.abort()  // http/https/file 全遮断(SSRF 対策)
+})
+```
+
+**HTTP 層 RateLimiter との分離(REQ-S-03)**: BrowserPool の上位に `src/limiter/rateLimiter.ts` を独立配置。HTTP 層は `RATE_LIMIT_MAX_INFLIGHT` 超で **即時 429**(`Retry-After` 付与)。BrowserPool は `POOL_QUEUE_MAX` 内なら wait、超過/timeout で **503**(`Retry-After` 付与)。
+
+**Graceful shutdown(C-P-03)**: `SIGTERM` / `SIGINT` 受信時に ① queue の新規 acquire を拒否、② in-flight render の完了待ち(最大 `MAX_TIMEOUT_MS`)、③ 全 page / browser を `close()`。
 
 Browser_Pool は Express アプリ起動時に初期化、シャットダウン時に全インスタンスを `close()`。初期化が完了するまで `/render` は 503 を返す(REQ-S-01)。
 
@@ -246,14 +319,17 @@ interface RenderRequestInput {
 
 #### バリデーション規約
 
+- `timeout_ms` の検証(C-S-06): 整数かつ `[MIN_TIMEOUT_MS=1000, MAX_TIMEOUT_MS=30000]` の範囲、それ以外は HTTP 400 / `error_type=invalid_request` / `error_field="timeout_ms"` / `error_constraint="out_of_range"`
 - `mermaid_config` は `object` 型のみ受理、それ以外は HTTP 400(REQ-E-07)
-- `mermaid_config` 配下の未知キーは**無視 + 警告ログ**(REQ-E-06)
-- `mermaid_config.securityLevel` 指定は**無視 + 警告ログ**(REQ-E-02)
-  - 同様に `SERVER_LOCKED_SETTINGS` に列挙されているキーは全て無視
-- `post_process` は `object` 型のみ受理、未知キーは無視 + 警告ログ
+- `mermaid_config` は **allowlist 方式**(REQ-E-06):
+  - **許可キー(API 層を通過)**: `theme` / `themeVariables` / `themeCSS` / `htmlLabels` / `flowchart` / `sequence` / `gantt` / `er` / `class` / `state` / `mindmap`
+  - **明示 reject(警告 `locked_setting_override_ignored`)**: `securityLevel` / `maxTextSize` / `maxEdges` / `secure` / `startOnLoad`(`SERVER_LOCKED_SETTINGS` 全キー)
+  - **無視 + 警告 `unknown_key`**: 上記いずれにも該当しない未知キー
+  - allowlist 配下のネストでも同様に `SERVER_LOCKED_SETTINGS` キーを再帰的に除去
+- `post_process` は `object` 型のみ受理。allowlist は `rewrite_ids` / `strip_max_width` のみ、未知キーは無視 + 警告 `unknown_key`
 - `post_process.rewrite_ids: boolean` を許可(default は true)
 - `post_process.strip_max_width: boolean` を許可(default は false。`useMaxWidth: false` 既定で大半は不要)
-- `format=png` と SVG 専用 `post_process.*` の同時指定は無視 + 警告ログ(REQ-E-05)
+- `format=png` と SVG 専用 `post_process.*` の同時指定は無視 + 警告 `svg_only_option_in_png`(REQ-E-05)
 - `mermaid_config.themeCSS` の検証(REQ-UN-05):
   - 文字列長 > `MAX_THEME_CSS_LENGTH`(`4096`)→ HTTP 400 / `error_type=invalid_request` / 警告コード `theme_css_rejected`
   - `THEME_CSS_FORBIDDEN_PATTERNS` のいずれかを **case-insensitive substring match** で含む → 同上で拒否
@@ -278,15 +354,98 @@ class WarningCollector {
 - `Content-Type` 解決は `CONTENT_TYPE_MAP`(§3.1)を参照
 - Browser_Pool 未初期化検知時に 503 + `error_type=service_unavailable` を返却(REQ-S-01)
 
-### 3.5 マージロジック(`buildRequestMermaidConfig`)の優先順位
+### 3.5 マージロジック(`buildRequestMermaidConfig`)の優先順位と安全性
+
+#### 優先順位
 
 ```
 1. BEAUTIFUL_DEFAULTS                       (最弱・基底)
-2. ユーザー mermaid_config(SERVER_LOCKED_SETTINGS キーは除外済)
+2. ユーザー mermaid_config(allowlist + SERVER_LOCKED_SETTINGS キー除外済)
 3. SERVER_LOCKED_SETTINGS                   (最強・上書き不可)
 ```
 
-deep merge は浅い merge ではなく、`flowchart.diagramPadding` 単独指定でも他の `flowchart.*` キーが消えないように再帰的に行う(`utils/deepMerge.ts` を新規作成、または既存ライブラリの最小コピー)。
+deep merge は浅い merge ではなく、`flowchart.diagramPadding` 単独指定でも他の `flowchart.*` キーが消えないように再帰的に行う。
+
+#### `safeDeepMerge` の必須要件(C-S-04 / REQ-UN-06)
+
+ユーザー入力 JSON とサーバ既定の deep merge は **Prototype Pollution の典型的入口**(CVE-2019-10744 で `lodash.defaultsDeep` が CVSS 9.1)。`utils/safeDeepMerge.ts` を新規実装し、以下を必須要件とする:
+
+```ts
+// src/utils/safeDeepMerge.ts
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+
+export function safeDeepMerge<T extends Record<string, unknown>>(
+  base: T,
+  override: unknown,
+  warnings: WarningCollector,
+): T {
+  if (!isPlainObject(override)) return structuredClone(base)
+  const out: Record<string, unknown> = Object.create(null)   // ★ プロトタイプチェーン排除
+  for (const [k, v] of Object.entries(base)) out[k] = v       // ★ for...in 禁止
+  for (const [key, value] of Object.entries(override)) {      // ★ Object.entries() を使用
+    if (FORBIDDEN_KEYS.has(key)) {
+      warnings.add('prototype_pollution_attempt', { key })
+      continue
+    }
+    if (isPlainObject(value) && isPlainObject(out[key])) {
+      out[key] = safeDeepMerge(out[key] as Record<string, unknown>, value, warnings)
+    } else {
+      out[key] = value
+    }
+  }
+  return out as T
+}
+```
+
+**併用要件**:
+- Dockerfile に `ENV NODE_OPTIONS="--disable-proto=delete"` を追加(OWASP defense in depth)
+- `SERVER_LOCKED_SETTINGS` の最終強制適用(本セクション優先順位 #3)は維持。merge の通り抜けに対する最終ガード
+- `isPlainObject` は `Object.prototype.toString.call(v) === '[object Object]'` で判定し、`null` / 配列 / Date / Map / Set / class instance を弾く
+
+### 3.6 可観測性(NFR-05)
+
+性能改善が主目的の改修で、p95/p99/queue 詰まりが見えないと達成判定ができない。最低限の構造化ログとメトリクスを MVP に含める。
+
+#### 構造化ログ(`pino` 推奨)
+
+各リクエストの完了時に以下フィールドを含む JSON 1 行をログ出力:
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `request_id` | string | UUID v4、ヘッダ `X-Request-Id` と同値 |
+| `format` | `'svg' \| 'png'` | 出力フォーマット |
+| `code_bytes` | number | リクエストの `code` バイト長 |
+| `queue_ms` | number | RateLimiter 通過後〜Pool acquire まで |
+| `render_ms` | number | `renderMermaid` 呼出時間 |
+| `post_process_ms` | number | SVG 後処理時間(rewrite_ids / strip_max_width) |
+| `total_ms` | number | リクエスト到達〜レスポンス送信まで |
+| `pool_in_use` | number | acquire 時点の使用中 page 数 |
+| `pool_waiting` | number | acquire 時点の wait queue 長 |
+| `result` | string | `ok` / `parse_error` / `render_error` / `timeout` / `rate_limited` / `invalid_request` / `service_unavailable` |
+| `warnings` | string[] | 警告コード配列(`unknown_key` / `prototype_pollution_attempt` 等) |
+
+警告のみのイベント(例: `prototype_pollution_attempt` の検出)も同じ構造で別ログ行として出力。
+
+#### Prometheus メトリクス(`prom-client` 推奨)
+
+`/metrics` エンドポイント(Express ルート)で expose:
+
+| メトリクス | 型 | ラベル |
+|---|---|---|
+| `render_total` | counter | `result` / `format` |
+| `render_duration_ms` | histogram | `format`(buckets: 50, 100, 250, 500, 1000, 2000, 5000, 10000) |
+| `queue_wait_ms` | histogram | (buckets: 10, 50, 100, 500, 1000, 3000) |
+| `browser_pool_in_use` | gauge | - |
+| `browser_pool_queue_size` | gauge | - |
+| `render_timeout_total` | counter | - |
+| `browser_restarts_total` | counter | `reason`(`max_uses` / `max_age` / `crash`) |
+| `validation_error_total` | counter | `field` / `constraint` |
+
+#### `/healthz` の意味整理
+
+- **`/livez`**(liveness): プロセスが生きているかの単純判定、常に 200
+- **`/readyz`**(readiness): BrowserPool が 1 page 以上 acquire 可能かつ直近 5 分のエラー率 < 50% なら 200、それ以外 503
+- 既存の `/healthz` は `/readyz` 相当として後方互換維持
 
 ## 4. データモデル
 
@@ -321,8 +480,10 @@ interface RenderErrorResponse {
   stderr: string                      // 既存(raw 保持)
   exit_code: number | null            // 既存
   format: 'svg' | 'png'               // 既存
-  error_message: string | null        // 新規(REQ-U-05)
+  error_message: string | null        // 新規(REQ-U-05、人間/LLM 可読)
   line: number | null                 // 新規(REQ-E-04)
+  error_field: string | null          // 新規(REQ-U-05、機械可読、例: "timeout_ms")
+  error_constraint: string | null     // 新規(REQ-U-05、機械可読、例: "out_of_range")
 }
 
 type ErrorType =
@@ -365,6 +526,12 @@ interface RenderContext {
 | **PROP-9** | `mermaid_config.themeCSS` の文字列長が上限超過 → HTTP 400 | REQ-UN-05 |
 | **PROP-10** | 構文エラー入力で SVG ボディ "Syntax error" を含まない | REQ-U-07 |
 | **PROP-11** | `mermaid_config.themeCSS` が `THEME_CSS_FORBIDDEN_PATTERNS` のいずれかを含む → HTTP 400 + `error_type=invalid_request` + 警告コード `theme_css_rejected` | REQ-UN-05 |
+| **PROP-12** | 既知 Prototype Pollution payload(`{"__proto__":{"polluted":true}}`、`{"constructor":{"prototype":{"polluted":true}}}` 等)送信後に `Object.prototype.polluted` が **未定義のまま**、警告コード `prototype_pollution_attempt` が記録され、リクエストは 200 を返す(または別の正当な error_type を返す)| REQ-UN-06, C-S-04 |
+| **PROP-13** | HTTP 層が `RATE_LIMIT_MAX_INFLIGHT` を超えると **即時 429** + `Retry-After` を返し、Pool 層が `POOL_QUEUE_MAX` を超える or `POOL_WAIT_TIMEOUT_MS` 経過で **503** + `Retry-After` を返す | REQ-S-03 |
+| **PROP-14** | `timeout_ms=60000`(`MAX_TIMEOUT_MS` 超)を送信 → HTTP 400 / `error_type=invalid_request` / `error_field="timeout_ms"` / `error_constraint="out_of_range"` | C-S-06, REQ-U-05 |
+| **PROP-15** | `mermaid_config.startOnLoad` 等の allowlist 外キーを送信 → 値が無視され、警告 `unknown_key` が記録される | REQ-E-06 |
+| **PROP-16** | `RENDERER_MODE=cli` で起動 → `mmdc` subprocess 経由でレンダリングが成功する(レイテンシは劣化、機能は等価) | NFR-06 |
+| **PROP-17** | `/metrics` を GET → Prometheus 形式で必須メトリクス 8 系統が含まれる | NFR-05 |
 
 各プロパティは `test/property/*.property.test.ts` に fast-check ベースで実装する(§9)。
 
@@ -378,8 +545,11 @@ interface RenderContext {
 | Mermaid パースエラー | 例外メッセージ正規表現 `^Parse error on line` / `^Lexical error on line` | `parse_error` | 400 |
 | Mermaid レンダリング失敗(その他) | 例外発生・空 SVG 等 | `render_error` | 500 |
 | タイムアウト | `setTimeout` で `renderMermaid()` を競争 → 勝敗 | `timeout` | 504 |
-| 同時実行上限 | RateLimiter で acquire 拒否 | `rate_limited` | 429 |
+| HTTP 層 同時受付上限超過(即時拒否、REQ-S-03) | RateLimiter が `RATE_LIMIT_MAX_INFLIGHT` 超で拒否 | `rate_limited` | 429 + `Retry-After` |
+| Pool 層 wait queue 満杯 / wait timeout 超過(REQ-S-03) | BrowserPool が `POOL_QUEUE_MAX` / `POOL_WAIT_TIMEOUT_MS` 超で拒否 | `service_unavailable` | 503 + `Retry-After` |
 | Browser_Pool 未初期化 / 全停止 | Pool 状態フラグ | `service_unavailable` | 503 |
+
+**全エラー種別共通**: `error_message`(人間/LLM 可読)を必ず含める(REQ-U-05、`invalid_request` も含む)。バリデーション系は `error_field` / `error_constraint`(機械可読)を併せて返す。
 
 #### 図 3: エラー判定と応答組立
 
@@ -492,6 +662,20 @@ services:
 
 `profiles: ['test']` により、通常の `docker compose up` では起動せず、検証時のみ起動する。
 
+#### Dockerfile への init 追加(C-P-03)
+
+Node.js を PID 1 で実行すると Chromium のゾンビプロセスが回収されないため、`tini` または `dumb-init` を `ENTRYPOINT` に挿入する。
+
+```dockerfile
+# Dockerfile(抜粋)
+RUN apt-get update && apt-get install -y --no-install-recommends tini && rm -rf /var/lib/apt/lists/*
+ENV NODE_OPTIONS="--disable-proto=delete"
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["node", "dist/server.js"]
+```
+
+または `docker-compose.yml` で `init: true` を指定して docker-init を有効化(同等)。`NODE_OPTIONS="--disable-proto=delete"` も同 Dockerfile で設定し、Prototype Pollution の defense in depth(C-S-04)を担保する。
+
 ### 8.2 検証フロー
 
 #### 図 4: テスト Docker → 本番 Docker 差し替えフロー
@@ -540,7 +724,7 @@ flowchart TD
 |---|---|---|
 | unit | `test/*.test.ts` | 既存 + 新規(`config.ts` の merge ロジック、`extractMermaidError` 等) |
 | integration | `test/integration/*.test.ts` | 既存 `render.test.ts` を新リクエスト形状で拡張 |
-| property | `test/property/*.property.test.ts` | §5 の PROP-1〜11 を fast-check ベースで追加 |
+| property | `test/property/*.property.test.ts` | §5 の PROP-1〜17 を fast-check ベースで追加 |
 
 ### 9.2 新規テスト
 
@@ -548,7 +732,7 @@ flowchart TD
 - `test/unit/extractMermaidError.test.ts`: 正規表現適用順、行番号抽出
 - `test/integration/browserPool.test.ts`: Browser_Pool の初期化、acquire/release、ヘルスチェック
 - `test/integration/serverLockedSettings.test.ts`: `securityLevel` override が無視されること
-- `test/property/*.property.test.ts`: PROP-1〜11
+- `test/property/*.property.test.ts`: PROP-1〜17
 
 ### 9.3 視覚的回帰(必要十分の範囲)
 
@@ -592,7 +776,7 @@ flowchart TD
 
 | リスク | 由来 | 緩和策 |
 |---|---|---|
-| Programmatic_API が semver 対象外(C-M-07) | `@mermaid-js/mermaid-cli` README 明記 | 依存を `^11.12.0` に pinning(NFR-02)、テスト用 Docker で先行検証(NFR-03)、アップデート時は手動レビュー |
+| Programmatic_API が semver 対象外(C-M-07 / C-M-08 / C-M-09) | `@mermaid-js/mermaid-cli` README 明記、過去 12 ヶ月で `renderMermaid` の `Buffer → Uint8Array` 破壊変更実績(v11.3.0 PR #767)、v11.13.0 で出力 SVG の見た目変化 | 依存を **exact pin**(NFR-02)+ Renovate 手動承認 + 画像差分テスト + property test + 性能ベンチを更新 PR 必須化 + `MermaidRendererAdapter` 抽象化(NFR-06)で破壊変更を adapter unit test で即検知、緊急時は `RENDERER_MODE=cli` フォールバック |
 | Mermaid 行番号ずれ([#3853](https://github.com/mermaid-js/mermaid/issues/3853)) | C-M-06 | `line` は参考値として返す。UI 側で「N 行目付近」と表現する責任は呼出側 |
 | `htmlLabels: false` オプトイン利用時の既知バグ(C-M-03) | 利用者が opt-in した場合 | ドキュメントで既知 Issue を明示、デフォルト化はしない(REQ-UN-02) |
 | Browser_Pool の Puppeteer インスタンス障害 | 長時間稼働の Chromium クラッシュ | ヘルスチェック失敗で除外、自動再生成(REQ-S-02) |
@@ -602,17 +786,21 @@ flowchart TD
 
 詳細は `tasks.md`(別途作成)で扱う。本書では大枠のみ示す。
 
-1. `config.ts` の定数集約(BEAUTIFUL_DEFAULTS / SERVER_LOCKED_SETTINGS / CONTENT_TYPE_MAP / DEFAULT_FORMAT) + 単体テスト
-2. `buildRequestMermaidConfig` + `extractMermaidError` の実装 + 単体テスト
-3. `BrowserPool` 実装 + integration test
-4. `MermaidRenderer.render()` を Programmatic_API ベースに刷新
-5. `inputValidator.ts` 拡張、`WarningCollector` 実装
-6. `server/app.ts` 配線変更、エラー応答に `error_message` / `line` 追加、503 対応
-7. `server/server.ts` の固定 config 書き出し廃止
-8. property テスト追加(PROP-1〜11)
-9. `docker-compose.yml` に test profile 追加 + `.env.test` 作成
-10. `scripts/perf-check.ts` 新規 + before/after 計測
-11. デプロイフロー(§8)実行
+1. `config.ts` の定数集約(`BEAUTIFUL_DEFAULTS` / `SERVER_LOCKED_SETTINGS` / `CONTENT_TYPE_MAP` / `DEFAULT_FORMAT` / `BODY_LIMIT_BYTES` / `RATE_LIMIT_MAX_INFLIGHT` / `POOL_*` / `MAX_TIMEOUT_MS` / `MAX_RENDERS_*` 等)+ 単体テスト
+2. `safeDeepMerge` + `buildRequestMermaidConfig` + `extractMermaidError` の実装 + 単体テスト + Prototype Pollution payload テスト(PROP-12)
+3. `MermaidRendererAdapter` interface + `ProgrammaticAdapter` + `CliFallbackAdapter` 実装(NFR-06)
+4. `BrowserPool` 実装(maxUses / browser recycle / request interception / launch args)+ integration test
+5. `inputValidator.ts` 拡張(allowlist 方式、`timeout_ms` 上限、`themeCSS` 拒否規約)、`WarningCollector` 実装
+6. `errorResponse.ts` 新規(`error_message` / `error_field` / `error_constraint` 統一)、`server/app.ts` 配線変更、429 / 503 + `Retry-After` 対応
+7. `observability.ts` 新規(pino 構造化ログ、prom-client メトリクス、`/metrics` / `/livez` / `/readyz`)
+8. `limiter/rateLimiter.ts` を HTTP 層即時拒否方式に拡張(REQ-S-03)
+9. `server/server.ts` の固定 config 書き出し廃止、Browser_Pool 起動 + graceful shutdown(SIGTERM)
+10. `package.json` で `@mermaid-js/mermaid-cli` を exact pin(NFR-02)
+11. `Dockerfile` に `tini` + `NODE_OPTIONS="--disable-proto=delete"` 追加(C-P-03 / C-S-04)
+12. property テスト追加(PROP-1〜17)
+13. `docker-compose.yml` に test profile 追加 + `.env.test` 作成
+14. `scripts/perf-check.ts` 新規 + before/after 計測 + p50/p95/p99 + queue 状態
+15. デプロイフロー(§8)実行
 
 ## 13. 関連ファイル(変更/新規)
 
@@ -623,7 +811,13 @@ flowchart TD
 | `src/renderer/mermaidRenderer.ts` | 大幅刷新 |
 | `src/renderer/browserPool.ts` | 新規 |
 | `src/renderer/postProcess.ts` | 新規 |
-| `src/utils/deepMerge.ts` | 新規 |
+| `src/utils/safeDeepMerge.ts` | 新規(Prototype Pollution 対策 / REQ-UN-06 / C-S-04) |
+| `src/renderer/mermaidRendererAdapter.ts` | 新規(adapter interface + ProgrammaticAdapter + CliFallbackAdapter / NFR-06) |
+| `src/server/errorResponse.ts` | 新規(エラー応答組立、`error_message` / `error_field` / `error_constraint` 統一) |
+| `src/server/observability.ts` | 新規(`/metrics` / `/livez` / `/readyz` / pino logger / prom-client メトリクス / NFR-05) |
+| `src/limiter/rateLimiter.ts` | 拡張(HTTP 層即時拒否、`Retry-After` 付与、`RATE_LIMIT_MAX_INFLIGHT` / REQ-S-03) |
+| `Dockerfile` | 拡張(`tini` 追加、`NODE_OPTIONS="--disable-proto=delete"` / C-P-03 / C-S-04) |
+| `package.json` | 拡張(`@mermaid-js/mermaid-cli` を exact pin、`pino` / `prom-client` 追加 / NFR-02 / NFR-05) |
 | `src/utils/warnings.ts` | 新規(WarningCollector / WarningCode) |
 | `src/utils/extractMermaidError.ts` | 新規 |
 | `src/server/app.ts` | 拡張(配線 + エラー応答) |
@@ -631,7 +825,7 @@ flowchart TD
 | `test/unit/*.test.ts` | 新規(merge、extract、warnings) |
 | `test/integration/browserPool.test.ts` | 新規 |
 | `test/integration/serverLockedSettings.test.ts` | 新規 |
-| `test/property/*.property.test.ts` | 追加(PROP-1〜11) |
+| `test/property/*.property.test.ts` | 追加(PROP-1〜17) |
 | `docker-compose.yml` | test profile 追加 |
 | `.env.test` | 新規 |
 | `scripts/perf-check.ts` | 新規 |
