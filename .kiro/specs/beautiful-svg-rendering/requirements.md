@@ -57,6 +57,9 @@
 - **C-M-05**: `mmdc` CLI には設定 JSON を inline で渡すフラグが存在しない(`-c, --configFile <path>` のみ)。設定変更は **ファイル経由** か、Programmatic_API を用いてオブジェクト直渡しのいずれか。
 - **C-M-06**: Mermaid のパースエラー stderr に出る「`Parse error on line N:`」の `N` には [#3853](https://github.com/mermaid-js/mermaid/issues/3853) で long-open の行番号ずれバグがある。エラー応答で行番号を扱う場合は「N 行目付近」相当の曖昧度を残してよい。
 - **C-M-07**: `@mermaid-js/mermaid-cli` の **Programmatic_API は semver 対象外**(README 明記)。依存バージョン pinning と移行検証手段を持つこと。
+- **C-M-08**: `@mermaid-js/mermaid-cli` の Node.js API は **v11.3.0 (2024-11-01)** で `renderMermaid` 戻り値 `data: Buffer → Uint8Array` の破壊的変更を行った実績がある([PR #767](https://github.com/mermaid-js/mermaid-cli/pull/767))。バージョン更新時は API 形状の互換確認を必須とし、依存は **exact pin** で管理する。
+- **C-M-09**: Mermaid 本体 **v11.13.0 (2026-03-09)** でプレーンテキストラベルの自動 Markdown 解釈が v10 互換へ巻き戻された。SVG **出力の見た目が変わる**種類の変更が minor リリースで発生し得るため、依存更新 PR では画像差分(`pixelmatch` 等)による視覚回帰検証を必須とする。
+- **C-M-10**: `@mermaid-js/mermaid-cli` の peerDependency は `puppeteer ^23`(2026-05 時点)。Puppeteer 側のバージョンも同期管理対象とする。
 
 ### 2.2 配布 HTML 埋込用途の制約
 
@@ -69,6 +72,15 @@
 - **C-S-01**: 入力 Mermaid テキストは信用してはならない(AI 生成想定)。`securityLevel` は `strict` を Server_Locked_Setting としてサーバ側で固定し、リクエストでの上書きを許可してはならない。
 - **C-S-02**: Mermaid の `maxTextSize`(schema デフォルト 50000)と `maxEdges`(schema デフォルト 500)を遵守する。
 - **C-S-03**: 親要件定義書 §3「入力検証」で定めた入力サイズ上限(現状 `MAX_CODE_SIZE=50KB`)を本改修でも遵守する。
+- **C-S-04**: ユーザー入力 JSON とサーバ既定設定の deep merge は **Prototype Pollution 脆弱性の典型的入口**([CVE-2019-10744](https://security.snyk.io/vuln/SNYK-JS-LODASH-450202) で `lodash.defaultsDeep` が CVSS 9.1、[CVE-2018-16487](https://security.snyk.io/vuln/SNYK-JS-LODASHMERGE-173732) で `lodash.merge` 同様の実績)。`mermaid_config` のマージでは禁止キー `__proto__` / `constructor` / `prototype` を **再帰的に拒否**する `safeDeepMerge` を必須とし、base は `Object.create(null)` で開始する。Node.js 起動オプション `NODE_OPTIONS="--disable-proto=delete"` の併用が defense in depth として推奨される(OWASP)。
+- **C-S-05**: Puppeteer/Chromium 上で Mermaid コードを評価する構成は **untrusted JS 評価相当のリスク**を伴う。レンダリング page では Puppeteer の **request interception で外部ネットワーク通信(`http:` / `https:` / `file:`)を遮断**し、`data:` / `about:` / `blob:` のみ allow すること(SSRF / クラウドメタデータエンドポイントへの到達防止)。
+
+### 2.4 Puppeteer / Chromium 運用上の制約
+
+- **C-P-01**: Puppeteer 公式 troubleshooting は **`--no-sandbox` を strongly discouraged** と明記。本番では Chrome sandbox 維持、または同等のコンテナ隔離(`seccomp` / `AppArmor` / read-only filesystem / Linux capability drop / egress 制限 / `/tmp` サイズ制限)が必須。
+- **C-P-02**: Puppeteer の page インスタンスを長期間再利用すると **メモリリークが発生**する(複数の本番運用事例で報告)。page 単位の **recycle policy(`maxUses`)** を実装すること(典型値: 50〜100 render / page)。browser 全体も定期再起動(典型値: 1000 render or 60 分)を行う。
+- **C-P-03**: Node.js を Docker PID 1 で実行すると、クラッシュした Chromium の **ゾンビプロセスが回収されない**。Dockerfile に **init(`tini` / `dumb-init`)** または `docker run --init` が必須。`SIGTERM` 受信時は graceful shutdown(queue close → browser close)を実装する。
+- **C-P-04**: `headless: 'shell'`(chrome-headless-shell)が Mermaid 用途では軽量で十分。`--disable-dev-shm-usage` / `--disable-gpu` / `--disable-extensions` 等の最小化オプションが標準。
 
 ## 3. ユーザーストーリーと要件
 
