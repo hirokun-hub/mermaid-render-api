@@ -225,7 +225,7 @@ interface RenderResult {
 実装:
 - `renderMermaid(browser, code, format, { mermaidConfig, svgId, ... })` を呼出
 - 例外/エラーは `extractMermaidError()`(下記 §6)で構造化
-- 成功時に `postProcess` を適用(§3.5)
+- 成功時に `postProcess` を適用(§7)
 - 一時ファイル不要(`mmdc --configFile` ルート廃止)
 
 ### 3.3 `src/validation/inputValidator.ts` の拡張
@@ -539,7 +539,7 @@ flowchart TD
 |---|---|---|
 | unit | `test/*.test.ts` | 既存 + 新規(`config.ts` の merge ロジック、`extractMermaidError` 等) |
 | integration | `test/integration/*.test.ts` | 既存 `render.test.ts` を新リクエスト形状で拡張 |
-| property | `test/property/*.property.test.ts` | §5 の PROP-1〜10 を fast-check ベースで追加 |
+| property | `test/property/*.property.test.ts` | §5 の PROP-1〜11 を fast-check ベースで追加 |
 
 ### 9.2 新規テスト
 
@@ -547,7 +547,7 @@ flowchart TD
 - `test/unit/extractMermaidError.test.ts`: 正規表現適用順、行番号抽出
 - `test/integration/browserPool.test.ts`: Browser_Pool の初期化、acquire/release、ヘルスチェック
 - `test/integration/serverLockedSettings.test.ts`: `securityLevel` override が無視されること
-- `test/property/*.property.test.ts`: PROP-1〜10
+- `test/property/*.property.test.ts`: PROP-1〜11
 
 ### 9.3 視覚的回帰(必要十分の範囲)
 
@@ -608,7 +608,7 @@ flowchart TD
 5. `inputValidator.ts` 拡張、`WarningCollector` 実装
 6. `server/app.ts` 配線変更、エラー応答に `error_message` / `line` 追加、503 対応
 7. `server/server.ts` の固定 config 書き出し廃止
-8. property テスト追加(PROP-1〜10)
+8. property テスト追加(PROP-1〜11)
 9. `docker-compose.yml` に test profile 追加 + `.env.test` 作成
 10. `scripts/perf-check.ts` 新規 + before/after 計測
 11. デプロイフロー(§8)実行
@@ -630,7 +630,7 @@ flowchart TD
 | `test/unit/*.test.ts` | 新規(merge、extract、warnings) |
 | `test/integration/browserPool.test.ts` | 新規 |
 | `test/integration/serverLockedSettings.test.ts` | 新規 |
-| `test/property/*.property.test.ts` | 追加(PROP-1〜10) |
+| `test/property/*.property.test.ts` | 追加(PROP-1〜11) |
 | `docker-compose.yml` | test profile 追加 |
 | `.env.test` | 新規 |
 | `scripts/perf-check.ts` | 新規 |
