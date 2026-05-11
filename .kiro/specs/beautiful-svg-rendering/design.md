@@ -814,7 +814,7 @@ flowchart TD
 3. `MermaidRendererAdapter` interface + `ProgrammaticAdapter` + `CliFallbackAdapter` 実装(NFR-06)
 4. `BrowserPool` 実装(maxUses / browser recycle / request interception / launch args)+ integration test
 5. `inputValidator.ts` 拡張(allowlist 方式、`timeout_ms` 上限、`themeCSS` 拒否規約)、`WarningCollector` 実装
-6. `errorResponse.ts` 新規(`error_message` / `error_field` / `error_constraint` 統一)、`server/app.ts` 配線変更、429 / 503 + `Retry-After` 対応
+6. `errorResponse.ts` 新規(`error_message` / `line` / `error_field` / `error_constraint` 統一)、`server/app.ts` 配線変更、429 / 503 + `Retry-After` 対応
 7. `observability.ts` 新規(pino 構造化ログ、prom-client メトリクス、`/metrics` / `/livez` / `/readyz`)
 8. `limiter/rateLimiter.ts` を HTTP 層即時拒否方式に拡張(REQ-S-03)
 9. `server/server.ts` の固定 config 書き出し廃止、Browser_Pool 起動 + graceful shutdown(SIGTERM)
@@ -836,7 +836,7 @@ flowchart TD
 | `src/renderer/postProcess.ts` | 新規 |
 | `src/utils/safeDeepMerge.ts` | 新規(Prototype Pollution 対策 / REQ-UN-06 / C-S-04) |
 | `src/renderer/mermaidRendererAdapter.ts` | 新規(adapter interface + ProgrammaticAdapter + CliFallbackAdapter / NFR-06) |
-| `src/server/errorResponse.ts` | 新規(エラー応答組立、`error_message` / `error_field` / `error_constraint` 統一) |
+| `src/server/errorResponse.ts` | 新規(エラー応答組立、`error_message` / `line` / `error_field` / `error_constraint` 統一) |
 | `src/server/observability.ts` | 新規(`/metrics` / `/livez` / `/readyz` / pino logger / prom-client メトリクス / NFR-05) |
 | `src/limiter/rateLimiter.ts` | 拡張(HTTP 層即時拒否、`Retry-After` 付与、`RATE_LIMIT_MAX_INFLIGHT` / REQ-S-03) |
 | `Dockerfile` | 拡張(`tini` 追加、`NODE_OPTIONS="--disable-proto=delete"` / C-P-03 / C-S-04) |
