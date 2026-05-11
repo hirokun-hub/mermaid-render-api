@@ -15,7 +15,13 @@
 
 ### 1.2 要件参照規約
 
-本設計書は要件定義書の REQ-* / US-* / NFR-* / C-*(技術的制約)を**参照のみ**し、要件本文を再掲しない(DRY)。各設計判断・コンポーネント・正確性プロパティの末尾に `Validates: REQ-X` 形式で関連 ID を併記する。
+本設計書は要件定義書の REQ-* / US-* / NFR-* / C-*(技術的制約)を**参照のみ**し、要件本文を再掲しない(DRY)。関連 ID の併記形式は文脈に応じて次のいずれかを採用する:
+
+- **§5「正確性プロパティ」表**: `Validates` 列に REQ-* を明示(自動テストとの紐付けが目的のため形式統一)
+- **設計判断・コンポーネント設計テーブル**: 表の「関連要件」「根拠」列に ID を列挙
+- **本文段落**: 末尾または該当箇所に括弧書きで `(REQ-X / C-Y)` 形式
+
+いずれの形式でも、関連 ID が必ず 1 つ以上明示されることを要求する。
 
 ## 2. アーキテクチャ
 
@@ -124,6 +130,8 @@ sequenceDiagram
 | `BEAUTIFUL_DEFAULTS` | `Readonly<MermaidConfig>` | Beautiful_Defaults の単一情報源 |
 | `SERVER_LOCKED_SETTINGS` | `Readonly<MermaidConfig>` | Server_Locked_Setting の単一情報源 |
 | `BROWSER_POOL_SIZE` | `number`(env: `BROWSER_POOL_SIZE`、default `MAX_CONCURRENT_RENDERERS` と同値) | Browser_Pool のサイズ |
+| `MAX_THEME_CSS_LENGTH` | `number` const = `4096` | `themeCSS` 入力の上限長(REQ-UN-05) |
+| `THEME_CSS_FORBIDDEN_PATTERNS` | `readonly string[]` | `themeCSS` 入力の禁止部分文字列リスト(下記 §3.3 参照) |
 | `MERMAID_PADDING` | 既存維持、default を `0` に変更 | C-H-02 と整合(SVG ルート CSS padding 廃止) |
 
 #### `BEAUTIFUL_DEFAULTS` の確定値
@@ -133,6 +141,7 @@ sequenceDiagram
 | `theme` | `"base"` | 親システム既定継承 |
 | `themeVariables.fontFamily` | `'"Noto Sans CJK JP", "IPAexGothic", sans-serif'` | 親システム既定継承(サーバ側 Noto 同梱) |
 | `themeCSS` | `.label foreignObject { overflow: visible; }` | G-2(C-H-03 対応) |
+| `htmlLabels` | `true`(root レベル) | C-M-02 / REQ-UN-02 / G-2 |
 | `securityLevel` | `"strict"` | C-S-01(Server_Locked_Setting と二重指定) |
 | `suppressErrorRendering` | `true` | REQ-U-07 |
 | `flowchart.useMaxWidth` | `false` | C-H-02 / US-04 |
@@ -245,6 +254,11 @@ interface RenderRequestInput {
 - `post_process.rewrite_ids: boolean` を許可(default は true)
 - `post_process.strip_max_width: boolean` を許可(default は false。`useMaxWidth: false` 既定で大半は不要)
 - `format=png` と SVG 専用 `post_process.*` の同時指定は無視 + 警告ログ(REQ-E-05)
+- `mermaid_config.themeCSS` の検証(REQ-UN-05):
+  - 文字列長 > `MAX_THEME_CSS_LENGTH`(`4096`)→ HTTP 400 / `error_type=invalid_request` / 警告コード `theme_css_rejected`
+  - `THEME_CSS_FORBIDDEN_PATTERNS` のいずれかを **case-insensitive substring match** で含む → 同上で拒否
+  - 禁止部分文字列リスト: `</style`, `<script`, `javascript:`, `@import`, `expression(`, `url(`, `behavior:`
+  - 二段防御の根拠: Mermaid 内 DOMPurify(`securityLevel=strict`)に依存せず、API 入口で粗いブロックを挟むことで、依存ライブラリの挙動変化(C-M-07)に対する追加防御層を設ける
 
 #### `WarningCollector` の導入
 
@@ -425,8 +439,15 @@ function extractMermaidError(rawStderr: string): {
 
 - `renderMermaid()` 呼出時に `svgId: \`mermaid-\${requestId}\`` を渡す
 - これにより SVG ルート要素の `id` 属性が `mermaid-<UUID>` となり、最低限の名前空間分離が達成される
-- `post_process.rewrite_ids: true`(default)は将来の本格対応の余地として API に残す。Phase 1 では `--svgId` 経由の軽量対策のみ実施
-- 同一ページ複数 SVG embed が必要となった時点で `<marker>`/`<clipPath>`/`<filter>`/`<linearGradient>` 等の内部 ID 全 rewrite を別票で実装
+
+### 7.1 `post_process.rewrite_ids` のフェーズ別セマンティクス
+
+| 値 | Phase 1(本改修) | Phase 2(将来別票) |
+|---|---|---|
+| `true`(default) | SVG ルート要素の `id` 属性を `mermaid-<requestId>` で一意化。SVG 内部 ID(`<marker>` / `<clipPath>` / `<filter>` / `<linearGradient>`)はそのまま | 内部 ID も `mermaid-<requestId>-<original>` 形式で全 rewrite |
+| `false` | Mermaid 既定 `svgId`(`mermaid-1` 等)で出力。ID 一意化を行わない | 同左 |
+
+> 注: Phase 1 では `rewrite_ids: true` の効果は **ルート ID 一意化のみ** であり、同一 HTML に複数 SVG embed すると `<marker id="arrowhead">` 等が衝突する(C-H-01 / 要件定義書 §8 Out of Scope)。Phase 2 は Phase 1 利用者の挙動を内包する形(superset)で拡張するため、`true` 指定の API 利用者は後方互換が保たれる。
 
 ## 8. デプロイ戦略(test Docker → prod Docker 差し替え)
 
@@ -482,7 +503,7 @@ flowchart TD
 
 - `vitest run`(unit + integration + property)が全て通る
 - 性能計測スクリプト(`scripts/perf-check.ts` を新規追加)で次を満たす:
-  - 単純 flowchart(ノード 5 個以下)のレイテンシ中央値 < **500ms**(NFR-01)
+  - 単純 flowchart(ノード 5 個以下)のレイテンシ中央値 ≤ **500ms**(NFR-01)
   - 連続 100 リクエストで Puppeteer プロセス数が `BROWSER_POOL_SIZE` を超えない(PROP-6)
 - 視覚的回帰の人間判定は行わない(要件: AI 駆動)
 
