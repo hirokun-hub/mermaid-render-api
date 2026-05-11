@@ -58,7 +58,7 @@ flowchart LR
   Renderer --> Merger["Config Merger<br>src/config.ts"]
   Merger -->|"merged config"| Renderer
   Renderer --> Pool["Browser Pool<br>src/renderer/browserPool.ts"]
-  Pool -->|"shared browser"| Mermaid["renderMermaid<br>@mermaid-js/mermaid-cli"]
+  Pool -->|"shared context"| Mermaid["renderMermaid<br>@mermaid-js/mermaid-cli"]
   Mermaid -->|"svg or png"| Renderer
   Renderer --> PostProcess["Post Processor<br>src/renderer/postProcess.ts"]
   PostProcess --> App
@@ -140,13 +140,13 @@ sequenceDiagram
 | `CONTENT_TYPE_MAP` | `Readonly<Record<'svg'\|'png', string>>` | DRY 改善: `server/app.ts` ローカル定義を集約 |
 | `BEAUTIFUL_DEFAULTS` | `Readonly<MermaidConfig>` | Beautiful_Defaults の単一情報源 |
 | `SERVER_LOCKED_SETTINGS` | `Readonly<MermaidConfig>` | Server_Locked_Setting の単一情報源 |
-| `BROWSER_POOL_SIZE` | `number`(env: `BROWSER_POOL_SIZE`、default `4`、page 単位) | Browser_Pool のサイズ(同時 render 可能 page 数) |
+| `BROWSER_POOL_SIZE` | `number`(env: `BROWSER_POOL_SIZE`、default `4`、BrowserContext 単位) | Browser_Pool のサイズ(同時 render 可能な BrowserContext 数) |
 | `RATE_LIMIT_MAX_INFLIGHT` | `number`(env、default `15`) | HTTP 層の同時受付上限。超過は **即時 429** + `Retry-After`(REQ-S-03) |
 | `POOL_QUEUE_MAX` | `number`(env、default `20`) | Pool acquire の wait queue 上限。超過は **503** + `Retry-After`(REQ-S-03) |
 | `POOL_WAIT_TIMEOUT_MS` | `number`(env、default `3000`) | Pool acquire の wait timeout。超過は **503** + `Retry-After`(REQ-S-03) |
 | `MIN_TIMEOUT_MS` | `number` const = `1000` | リクエスト `timeout_ms` 下限(C-S-06) |
 | `MAX_TIMEOUT_MS` | `number`(env、default `30000`) | リクエスト `timeout_ms` 上限(C-S-06) |
-| `MAX_RENDERS_PER_PAGE` | `number`(env、default `100`) | page 単位の recycle 閾値(C-P-02) |
+| `MAX_RENDERS_PER_CONTEXT` | `number`(env、default `100`) | BrowserContext 単位の recycle 閾値(C-P-02 が page リーク対策として要求するもの。本改修では context を単位として recycle する) |
 | `MAX_RENDERS_PER_BROWSER` | `number`(env、default `1000`) | browser 単位の recycle 閾値(C-P-02) |
 | `MAX_BROWSER_AGE_MS` | `number`(env、default `3600000`、60 分) | browser 単位の最長存続時間(C-P-02) |
 | `RESERVED_BODY_OVERHEAD_BYTES` | `number` const = `16384` | Express body limit 算出時の余裕代(C-S-03) |
@@ -181,6 +181,8 @@ sequenceDiagram
 | `securityLevel` | `"strict"` | REQ-UN-01 / C-S-01 |
 | `maxTextSize` | `50000` | C-S-02 |
 | `maxEdges` | `500` | C-S-02 |
+| `startOnLoad` | `false` | サーバサイド render では auto-init 不要、ユーザー上書きを拒否(security-sensitive) |
+| `secure` | Mermaid v11 既定値を維持(上書き不可) | trusted top-level config キーの allowlist、ユーザー上書きを拒否(security-sensitive) |
 
 #### 関数
 
@@ -247,7 +249,7 @@ class BrowserPool {
 ```
 
 **Context / Browser recycle policy(C-P-02)**:
-- 1 BrowserContext あたり `MAX_RENDERS_PER_PAGE`(default 100)回 render で context 破棄 → 同 browser 配下に新規 context 生成
+- 1 BrowserContext あたり `MAX_RENDERS_PER_CONTEXT`(default 100)回 render で context 破棄 → 同 browser 配下に新規 context 生成
 - 1 browser あたり `MAX_RENDERS_PER_BROWSER`(default 1000)render または `MAX_BROWSER_AGE_MS`(default 60 分)で browser 全体を recycle(全 context 破棄 → browser 再起動)
 - render 失敗 / timeout / navigation error 時は即座に当該 context を破棄
 
@@ -436,7 +438,7 @@ export function safeDeepMerge<T extends Record<string, unknown>>(
 | `render_ms` | number | `renderMermaid` 呼出時間 |
 | `post_process_ms` | number | SVG 後処理時間(rewrite_ids / strip_max_width) |
 | `total_ms` | number | リクエスト到達〜レスポンス送信まで |
-| `pool_in_use` | number | acquire 時点の使用中 page 数 |
+| `pool_in_use` | number | acquire 時点の使用中 BrowserContext 数 |
 | `pool_waiting` | number | acquire 時点の wait queue 長 |
 | `result` | string | `ok` / `parse_error` / `render_error` / `timeout` / `rate_limited` / `invalid_request` / `service_unavailable` |
 | `warnings` | string[] | 警告コード配列(`unknown_key` / `prototype_pollution_attempt` 等) |
@@ -458,11 +460,11 @@ export function safeDeepMerge<T extends Record<string, unknown>>(
 | `browser_restarts_total` | counter | `reason`(`max_uses` / `max_age` / `crash`) |
 | `validation_error_total` | counter | `field` / `constraint` |
 
-#### `/healthz` の意味整理
+#### `/healthz` / `/livez` / `/readyz` の意味整理
 
-- **`/livez`**(liveness): プロセスが生きているかの単純判定、常に 200
-- **`/readyz`**(readiness): BrowserPool が 1 page 以上 acquire 可能かつ直近 5 分のエラー率 < 50% なら 200、それ以外 503
-- 既存の `/healthz` は `/readyz` 相当として後方互換維持
+- **`/healthz`**(既存維持): **liveness 相当**。プロセスが生きていれば常に 200。Browser_Pool 初期化中でも 200(REQ-S-01 で「コンテナを起動中に kill されない」ためにこの挙動を要求)。後方互換のため応答仕様は変更しない。
+- **`/livez`**(新規): `/healthz` のエイリアス兼新規名(Kubernetes 慣行に合わせる)。常に 200。
+- **`/readyz`**(新規): **readiness 相当**。BrowserPool が 1 BrowserContext 以上 acquire 可能かつ直近 5 分のエラー率 < 50% で 200、それ以外 503。ロードバランサが新規トラフィックを送信して良いかの判定用。
 
 ## 4. データモデル
 
@@ -546,7 +548,7 @@ interface RenderContext {
 | **PROP-12** | 既知 Prototype Pollution payload(`{"__proto__":{"polluted":true}}`、`{"constructor":{"prototype":{"polluted":true}}}` 等)送信後に `Object.prototype.polluted` が **未定義のまま**、警告コード `prototype_pollution_attempt` が記録され、リクエストは 200 を返す(または別の正当な error_type を返す)| REQ-UN-06, C-S-04 |
 | **PROP-13** | HTTP 層が `RATE_LIMIT_MAX_INFLIGHT` を超えると **即時 429** + `Retry-After` を返し、Pool 層が `POOL_QUEUE_MAX` を超える or `POOL_WAIT_TIMEOUT_MS` 経過で **503** + `Retry-After` を返す | REQ-S-03 |
 | **PROP-14** | `timeout_ms=60000`(`MAX_TIMEOUT_MS` 超)を送信 → HTTP 400 / `error_type=invalid_request` / `error_field="timeout_ms"` / `error_constraint="out_of_range"` | C-S-06, REQ-U-05 |
-| **PROP-15** | `mermaid_config.startOnLoad` 等の allowlist 外キーを送信 → 値が無視され、警告 `unknown_key` が記録される | REQ-E-06 |
+| **PROP-15** | `mermaid_config` に allowlist 外の未知キー(例: `nonexistent_key: 1`、`unsupportedDiagram: {}` 等、`SERVER_LOCKED_SETTINGS` のキーには該当しないもの)を送信 → 値が無視され、警告 `unknown_key` が記録される。`SERVER_LOCKED_SETTINGS` キー(`securityLevel` / `maxTextSize` / `maxEdges` / `startOnLoad` / `secure`)送信時は警告 `locked_setting_override_ignored` を記録する | REQ-E-06 |
 | **PROP-16** | `RENDERER_MODE=cli` で起動 → `mmdc` subprocess 経由でレンダリングが成功する(レイテンシは劣化、機能は等価) | NFR-06 |
 | **PROP-17** | `/metrics` を GET → Prometheus 形式で必須メトリクス 8 系統が含まれる | NFR-05 |
 
