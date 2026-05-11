@@ -34,6 +34,13 @@
 - **Programmatic_API**: `@mermaid-js/mermaid-cli` が export する `renderMermaid` 関数(Puppeteer ブラウザを引数に取り、`mmdc` subprocess を起動しない)
 - **Server_Locked_Setting**: ユーザーが上書き不可能なサーバ側固定設定(セキュリティ目的)
 
+### 1.5 本ドキュメントの読み方
+
+- **§3「ユーザーストーリーと要件」が中心**。各 US セクション配下に、そのストーリーを達成するための機能要件(EARS)が直接埋め込まれている。
+- 1 つの要件が複数 US に関連する場合、**主担当 US に本文を 1 回だけ書き、他 US は番号参照**にしている(DRY)。各 US の冒頭に「関連 REQ 一覧(主担当 / 参照)」の早見表を置く。
+- どの US にも単独で紐付かない横断的要件(セキュリティガードレール、入力契約ガードレール、デフォルト挙動の禁止事項)は **§4「横断要件」**にまとめる。
+- 具体的なデフォルト値・パラメータ命名・型定義・実装ロジックは本ファイルでは扱わず、`design.md` を参照する(DRY)。
+
 ## 2. 技術的制約
 
 本セクションは、`docs/expert-reviews/2026-05-10_mermaid-svg-rendering-best-practices.md` で信頼性 ≥97% と判定した一次ソース確認済の事実を要件に転記したもの。設計判断の前提条件として扱う。
@@ -63,87 +70,160 @@
 - **C-S-02**: Mermaid の `maxTextSize`(schema デフォルト 50000)と `maxEdges`(schema デフォルト 500)を遵守する。
 - **C-S-03**: 親要件定義書 §3「入力検証」で定めた入力サイズ上限(現状 `MAX_CODE_SIZE=50KB`)を本改修でも遵守する。
 
-## 3. ユーザーストーリー
+## 3. ユーザーストーリーと要件
 
-| ID | ロール | やりたいこと | 価値 |
-|---|---|---|---|
-| **US-01** | 配布資料作成者 | AI 生成 Mermaid を単独 HTML(スタンドアロン)に直接埋め込み配布する | 配布先のフォント環境に依存せず、追加の SVG 後加工なしで美しく見える |
-| **US-02** | AI 利用者(Mermaid を出力する LLM 含む) | ノード見切れの心配なしに Mermaid コードを生成する | レイアウト調整の試行錯誤やラベル短縮を強制されない |
-| **US-03** | 配布資料作成者 | ノード余白が小さくスッキリした図にしたい | 限られた紙面/画面で密度高く情報伝達できる |
-| **US-04** | 配布 HTML 作成者 | SVG を `max-width: 100%; height: auto;` で responsive 表示したい | クライアント側で `style="max-width:..."` を正規表現で剥がすワークアラウンドが不要になる |
-| **US-05** | AI 利用者 / 開発者 | Mermaid 構文エラー時に「どこが悪いか」を明確に知りたい | エラー自己修復(LLM が再生成)や手動修正がしやすい |
-| **US-06** | 既存 API 利用者 | 改修前と同じ最小リクエスト(`code` + `format` のみ)を出してもエラーにならず動かしたい | 自動化スクリプトやクライアント実装を変更せず移行できる |
-| **US-07** | 高頻度利用者 | 1 リクエストあたりの応答時間を短くしたい | バッチで多数の図を生成する際の待ち時間を圧縮できる |
+各 US セクションは「ストーリー本文 → 関連 REQ 早見表 → 主担当 REQ 本文 → 参照 REQ(他 US に本文があるもの)」の順で記述する。**主担当 REQ の本文はストーリーごとに 1 回だけ出現する**(DRY)。検証時に EARS 述語の網羅性を確認する場合は、本ドキュメント全体に対し `grep -E "SHALL|SHOULD"` を実行する。
 
-## 4. 機能要件(EARS)
+### 3.1 US-01: 配布資料作成者(美しい単独 HTML 埋込)
 
-各要件には関連する US と、設計書側で検証する正確性プロパティ(`PROP-*`)タグを併記する。**具体的なデフォルト値・パラメータ命名・型定義・実装方法は本ファイルでは扱わず、`design.md` を参照する**(DRY)。
+> **ロール**: 配布資料作成者
+> **やりたいこと**: AI 生成 Mermaid を単独 HTML(スタンドアロン)に直接埋め込み配布する
+> **価値**: 配布先のフォント環境に依存せず、追加の SVG 後加工なしで美しく見える
 
-### 4.1 ユビキタス要件(常に成立)
+**関連要件早見表**:
 
-#### REQ-U-01: 美しい既定出力(US-01, US-02, US-03)
+| ID | 区分 | 担当 |
+|---|---|---|
+| REQ-U-01 | 美しい既定出力 | 主 |
+| REQ-U-04 | Post_Process_Option の受理 | 主 |
+| REQ-E-05 | PNG での SVG 専用オプション無視 | 参照 → US-04 |
+| REQ-U-07 | Syntax error 図の混入防止 | 参照 → US-05 |
+
+#### REQ-U-01: 美しい既定出力
 
 THE System SHALL リクエストで Mermaid_Config_Override が一切指定されない場合でも、配布 HTML 用途で美しいと判定される Beautiful_Defaults を適用した SVG/PNG を返却する。
 
-#### REQ-U-02: 既存 API 形状の後方互換(US-06)
-
-THE System SHALL 親要件定義書(`mermaid-image-converter`)で定義された最小リクエスト形状(`code` + `format` + `timeout_ms` のみ)を引き続き受理し、HTTP 200 で画像を返却する。
-
-#### REQ-U-03: リクエスト時設定上書きの受理
-
-THE System SHALL リクエスト本文に Mermaid_Config_Override(Mermaid 公式 schema 準拠キー)を含めることを許可し、Beautiful_Defaults より優先して適用する。ただし Server_Locked_Setting については REQ-UN-01 に従う。
+> 関連: US-02(見切れ回避)、US-03(余白圧縮)もこの要件に依存する。
 
 #### REQ-U-04: Post_Process_Option の受理
 
 THE System SHALL リクエスト本文に Post_Process_Option(API 独自の後処理指示)を含めることを許可し、SVG 生成後にサーバ側で適用する。
 
-#### REQ-U-05: 構造化エラー応答(US-05)
+> 関連: US-04(responsive 化のための `max-width` 除去)もこの要件に依存する。
 
-THE System SHALL Mermaid のパース/レンダリング失敗時、`mmdc` 生 stderr に加えて、ユーザー由来部分を抽出した可読メッセージと、抽出可能な場合の参照行情報を含む JSON を返却する。
+### 3.2 US-02: AI 利用者(見切れ回避)
 
-#### REQ-U-06: securityLevel の固定(C-S-01)
+> **ロール**: AI 利用者(Mermaid を出力する LLM 含む)
+> **やりたいこと**: ノード見切れの心配なしに Mermaid コードを生成する
+> **価値**: レイアウト調整の試行錯誤やラベル短縮を強制されない
 
-THE System SHALL レンダリング時の `securityLevel` を `strict` に固定する。
+**関連要件早見表**:
 
-#### REQ-U-07: エラー時の Syntax error 図の混入防止
+| ID | 区分 | 担当 |
+|---|---|---|
+| REQ-U-01 | 美しい既定出力(見切れ防止を含む) | 参照 → US-01 |
+| REQ-E-01 | Mermaid_Config_Override 指定時のマージ | 参照 → US-03 |
+| REQ-U-03 | リクエスト時設定上書きの受理 | 参照 → US-03 |
 
-THE System SHALL Mermaid 既定の「Syntax error 図」が SVG として返却されることを防ぐ。
+このストーリーは独自の機能要件を追加せず、US-01(`Beautiful_Defaults` で foreignObject クリップを抑制)および US-03(`Mermaid_Config_Override` で個別調整)を組み合わせて達成する。具体的な見切れ対策(themeCSS による `overflow: visible` 等)は `design.md` §3.1 の `BEAUTIFUL_DEFAULTS` テーブルを参照。
 
-#### REQ-U-08: Browser_Pool の常駐(US-07, C-M-07)
+### 3.3 US-03: 余白圧縮を求める利用者
 
-THE System SHALL Programmatic_API + Browser_Pool 方式でレンダリングを実行し、リクエストごとに Puppeteer/Chromium を起動・終了してはならない。
+> **ロール**: 配布資料作成者
+> **やりたいこと**: ノード余白が小さくスッキリした図にしたい
+> **価値**: 限られた紙面/画面で密度高く情報伝達できる
 
-### 4.2 イベント駆動要件(〜したとき)
+**関連要件早見表**:
 
-#### REQ-E-01: Mermaid_Config_Override 指定時のマージ(US-02, US-03)
+| ID | 区分 | 担当 |
+|---|---|---|
+| REQ-U-03 | リクエスト時設定上書きの受理 | 主 |
+| REQ-E-01 | Mermaid_Config_Override 指定時のマージ | 主 |
+| REQ-U-01 | Beautiful_Defaults による既定の余白圧縮 | 参照 → US-01 |
+
+#### REQ-U-03: リクエスト時設定上書きの受理
+
+THE System SHALL リクエスト本文に Mermaid_Config_Override(Mermaid 公式 schema 準拠キー)を含めることを許可し、Beautiful_Defaults より優先して適用する。ただし Server_Locked_Setting については §4.1(横断要件・セキュリティガードレール)に従う。
+
+#### REQ-E-01: Mermaid_Config_Override 指定時のマージ
 
 WHEN クライアントが Mermaid_Config_Override に正常な Mermaid 設定キーを含めて送信したとき、THE System SHALL Beautiful_Defaults を基底とし、上書き値で deep merge し、最後に Server_Locked_Setting を強制適用する。
 
-#### REQ-E-02: Server_Locked_Setting への上書き試行(C-S-01)
+### 3.4 US-04: 配布 HTML を responsive 化したい利用者
 
-WHEN クライアントが Mermaid_Config_Override 内で Server_Locked_Setting(`securityLevel` 等)を指定したとき、THE System SHALL 当該指定を無視し、警告ログを記録する。リクエストはエラーにせず処理を継続する。
+> **ロール**: 配布 HTML 作成者
+> **やりたいこと**: SVG を `max-width: 100%; height: auto;` で responsive 表示したい
+> **価値**: クライアント側で `style="max-width:..."` を正規表現で剥がすワークアラウンドが不要になる
 
-#### REQ-E-03: 構文エラー時の error_message 抽出(US-05)
+**関連要件早見表**:
 
-WHEN Render_Process が Mermaid のパースエラーで失敗したとき、THE System SHALL `stderr` または例外メッセージから「ユーザー Mermaid コード由来のエラー本文」を抽出し、構造化応答に含める。抽出失敗時は空文字または `null` を許可する。
-
-#### REQ-E-04: 行番号の抽出(US-05, C-M-06)
-
-WHEN error_message に Mermaid 由来の行番号情報が含まれるとき、THE System SHALL 行番号を整数値として抽出し、応答に含める。抽出できない場合は `null` を返す。行番号にずれがあり得る点は応答メッセージに含意される表現にとどめる。
+| ID | 区分 | 担当 |
+|---|---|---|
+| REQ-E-05 | PNG での SVG 専用オプション無視 | 主 |
+| REQ-U-04 | Post_Process_Option の受理(本ストーリーで具体活用) | 参照 → US-01 |
 
 #### REQ-E-05: PNG リクエストでの SVG 専用 Post_Process_Option
 
 WHEN クライアントが `format=png` のリクエストで SVG 出力にのみ意味のある Post_Process_Option(例: SVG ルートの ID 一意化、`max-width` 除去)を指定したとき、THE System SHALL 当該オプションを無視し、警告ログを記録する。HTTP 200 で PNG を返却する。
 
-#### REQ-E-06: 未知キーの受理
+> 注: `useMaxWidth: false` 指定で SVG ルートの `style="max-width:..."` を消すこと自体は Mermaid 設定で制御するが、配布側で responsive 化したい場合に `Post_Process_Option` を任意に併用できる(具体オプション名は `design.md` 参照)。
 
-WHEN クライアントが Mermaid_Config_Override または Post_Process_Option に本 API が認識しないキーを含めて送信したとき、THE System SHALL 当該未知キーを無視し、警告ログを記録する。リクエストはエラーにせず処理を継続する。ただし Mermaid_Config_Override 配下の未知キーは Mermaid 本体に渡るため、Mermaid 側のバリデーションが働く場合は Mermaid 側の挙動に従う。
+### 3.5 US-05: AI 利用者 / 開発者(エラー可読性)
 
-#### REQ-E-07: 型不正な Mermaid_Config_Override / Post_Process_Option
+> **ロール**: AI 利用者 / 開発者
+> **やりたいこと**: Mermaid 構文エラー時に「どこが悪いか」を明確に知りたい
+> **価値**: エラー自己修復(LLM が再生成)や手動修正がしやすい
 
-WHEN クライアントが Mermaid_Config_Override または Post_Process_Option の値に明確に型不正(例: boolean 必須の場所に文字列)を指定したとき、THE System SHALL HTTP 400 で `error_type=invalid_request` を返却する。
+**関連要件早見表**:
 
-### 4.3 状態駆動要件(〜の間)
+| ID | 区分 | 担当 |
+|---|---|---|
+| REQ-U-05 | 構造化エラー応答 | 主 |
+| REQ-U-07 | Syntax error 図の混入防止 | 主 |
+| REQ-E-03 | 構文エラー時の error_message 抽出 | 主 |
+| REQ-E-04 | 行番号の抽出 | 主 |
+
+#### REQ-U-05: 構造化エラー応答
+
+THE System SHALL Mermaid のパース/レンダリング失敗時、`mmdc` 生 stderr に加えて、ユーザー由来部分を抽出した可読メッセージと、抽出可能な場合の参照行情報を含む JSON を返却する。
+
+#### REQ-U-07: エラー時の Syntax error 図の混入防止
+
+THE System SHALL Mermaid 既定の「Syntax error 図」が SVG として返却されることを防ぐ。
+
+#### REQ-E-03: 構文エラー時の error_message 抽出
+
+WHEN Render_Process が Mermaid のパースエラーで失敗したとき、THE System SHALL `stderr` または例外メッセージから「ユーザー Mermaid コード由来のエラー本文」を抽出し、構造化応答に含める。抽出失敗時は空文字または `null` を許可する。
+
+#### REQ-E-04: 行番号の抽出
+
+WHEN error_message に Mermaid 由来の行番号情報が含まれるとき、THE System SHALL 行番号を整数値として抽出し、応答に含める。抽出できない場合は `null` を返す。行番号にずれがあり得る点(C-M-06)は応答メッセージに含意される表現にとどめる。
+
+### 3.6 US-06: 既存 API 利用者(後方互換)
+
+> **ロール**: 既存 API 利用者
+> **やりたいこと**: 改修前と同じ最小リクエスト(`code` + `format` のみ)を出してもエラーにならず動かしたい
+> **価値**: 自動化スクリプトやクライアント実装を変更せず移行できる
+
+**関連要件早見表**:
+
+| ID | 区分 | 担当 |
+|---|---|---|
+| REQ-U-02 | 既存 API 形状の後方互換 | 主 |
+
+#### REQ-U-02: 既存 API 形状の後方互換
+
+THE System SHALL 親要件定義書(`mermaid-image-converter`)で定義された最小リクエスト形状(`code` + `format` + `timeout_ms` のみ)を引き続き受理し、HTTP 200 で画像を返却する。
+
+> 注: 出力バイト互換は保証しない(Beautiful_Defaults により見た目は変わる)。詳細は §5.3「後方互換性ポリシー」参照。
+
+### 3.7 US-07: 高頻度利用者(レイテンシ短縮)
+
+> **ロール**: 高頻度利用者
+> **やりたいこと**: 1 リクエストあたりの応答時間を短くしたい
+> **価値**: バッチで多数の図を生成する際の待ち時間を圧縮できる
+
+**関連要件早見表**:
+
+| ID | 区分 | 担当 |
+|---|---|---|
+| REQ-U-08 | Browser_Pool の常駐 | 主 |
+| REQ-S-01 | Browser_Pool 起動失敗時の挙動 | 主 |
+| REQ-S-02 | Browser_Pool 障害検知時 | 主 |
+
+#### REQ-U-08: Browser_Pool の常駐
+
+THE System SHALL Programmatic_API + Browser_Pool 方式でレンダリングを実行し、リクエストごとに Puppeteer/Chromium を起動・終了してはならない。
 
 #### REQ-S-01: Browser_Pool 起動失敗時の挙動
 
@@ -153,19 +233,23 @@ WHILE Browser_Pool の初期化が完了していない間、THE System SHALL `/
 
 WHILE Browser_Pool のいずれかのインスタンスが応答不能と判定されている間、THE System SHALL 当該インスタンスを除外し、健全なインスタンスでレンダリングを続行する。すべてのインスタンスが不能になった場合は REQ-S-01 と同じ応答とする。
 
-### 4.4 望ましくない挙動の禁止
+## 4. 横断要件
+
+どの US にも単独で紐付かず、システム全体に横断的に適用される要件。
+
+### 4.1 セキュリティガードレール
+
+#### REQ-U-06: securityLevel の固定(C-S-01)
+
+THE System SHALL レンダリング時の `securityLevel` を `strict` に固定する。
+
+#### REQ-E-02: Server_Locked_Setting への上書き試行(C-S-01)
+
+WHEN クライアントが Mermaid_Config_Override 内で Server_Locked_Setting(`securityLevel` 等)を指定したとき、THE System SHALL 当該指定を無視し、警告ログを記録する。リクエストはエラーにせず処理を継続する。
 
 #### REQ-UN-01: Server_Locked_Setting の上書き禁止(C-S-01)
 
 THE System SHALL Mermaid_Config_Override を経由したいかなる入力に対しても、Server_Locked_Setting(少なくとも `securityLevel` を含む)を上書きしてはならない。
-
-#### REQ-UN-02: htmlLabels の既定 false 化禁止(C-M-03)
-
-THE System SHALL Beautiful_Defaults において `htmlLabels` を `false` に設定してはならない。`htmlLabels: false` はオプトインパラメータとしてのみ提供する。
-
-#### REQ-UN-03: ELK レンダラの既定採用禁止(C-M-04)
-
-THE System SHALL Beautiful_Defaults において `layout: "elk"` を既定としてはならない。ELK レイアウトはオプトインパラメータとしてのみ提供する。
 
 #### REQ-UN-04: Mermaid_Code の永続保存禁止(親要件継承)
 
@@ -174,6 +258,26 @@ THE System SHALL リクエストで受け取った Mermaid コードを永続ス
 #### REQ-UN-05: 任意 CSS 注入の制限
 
 THE System SHALL Mermaid_Config_Override 経由で渡される `themeCSS` 文字列の長さ・内容に対し、設計書で定める上限・サニタイズ規約を超える指定を拒否する。
+
+### 4.2 入力契約のガードレール
+
+#### REQ-E-06: 未知キーの受理
+
+WHEN クライアントが Mermaid_Config_Override または Post_Process_Option に本 API が認識しないキーを含めて送信したとき、THE System SHALL 当該未知キーを無視し、警告ログを記録する。リクエストはエラーにせず処理を継続する。ただし Mermaid_Config_Override 配下の未知キーは Mermaid 本体に渡るため、Mermaid 側のバリデーションが働く場合は Mermaid 側の挙動に従う。
+
+#### REQ-E-07: 型不正な Mermaid_Config_Override / Post_Process_Option
+
+WHEN クライアントが Mermaid_Config_Override または Post_Process_Option の値に明確に型不正(例: boolean 必須の場所に文字列)を指定したとき、THE System SHALL HTTP 400 で `error_type=invalid_request` を返却する。
+
+### 4.3 デフォルト挙動の禁止事項
+
+#### REQ-UN-02: htmlLabels の既定 false 化禁止(C-M-03)
+
+THE System SHALL Beautiful_Defaults において `htmlLabels` を `false` に設定してはならない。`htmlLabels: false` はオプトインパラメータとしてのみ提供する。
+
+#### REQ-UN-03: ELK レンダラの既定採用禁止(C-M-04)
+
+THE System SHALL Beautiful_Defaults において `layout: "elk"` を既定としてはならない。ELK レイアウトはオプトインパラメータとしてのみ提供する。
 
 ## 5. API 仕様(MVP 改訂)
 
@@ -226,17 +330,17 @@ THE System SHALL Mermaid_Config_Override 経由で渡される `themeCSS` 文字
 
 ## 6. 受入基準サマリ(横断確認用)
 
-| 確認項目 | 関連要件 |
-|---|---|
-| 改修前と同じ最小リクエストが HTTP 200 で動作する | REQ-U-02 |
-| 何も指定しないリクエストの SVG が、配布 HTML embed 用途で意図した「美しさ」を達成する | REQ-U-01 |
-| `mermaid_config` で指定した値がレンダリング結果に反映される | REQ-E-01 |
-| `securityLevel: "loose"` を指定しても無視され、`strict` のままレンダリングされる | REQ-E-02, REQ-UN-01 |
-| パース失敗時のレスポンスに `error_message` / `line` フィールドが含まれる | REQ-U-05, REQ-E-03, REQ-E-04 |
-| 構文エラー時に "Syntax error" 図 SVG が返却されない | REQ-U-07 |
-| 連続 100 リクエストで Puppeteer プロセスがリクエスト数に比例して増えない | REQ-U-08 |
-| Browser_Pool 初期化前のリクエストが 503 を返す | REQ-S-01 |
-| `format=png` で SVG 専用 Post_Process_Option を指定しても PNG が返る | REQ-E-05 |
+| 確認項目 | 関連要件 | 関連 US |
+|---|---|---|
+| 改修前と同じ最小リクエストが HTTP 200 で動作する | REQ-U-02 | US-06 |
+| 何も指定しないリクエストの SVG が、配布 HTML embed 用途で意図した「美しさ」を達成する | REQ-U-01 | US-01 |
+| `mermaid_config` で指定した値がレンダリング結果に反映される | REQ-E-01 | US-03 |
+| `securityLevel: "loose"` を指定しても無視され、`strict` のままレンダリングされる | REQ-E-02, REQ-UN-01, REQ-U-06 | 横断 |
+| パース失敗時のレスポンスに `error_message` / `line` フィールドが含まれる | REQ-U-05, REQ-E-03, REQ-E-04 | US-05 |
+| 構文エラー時に "Syntax error" 図 SVG が返却されない | REQ-U-07 | US-05 |
+| 連続 100 リクエストで Puppeteer プロセスがリクエスト数に比例して増えない | REQ-U-08 | US-07 |
+| Browser_Pool 初期化前のリクエストが 503 を返す | REQ-S-01 | US-07 |
+| `format=png` で SVG 専用 Post_Process_Option を指定しても PNG が返る | REQ-E-05 | US-04 |
 
 ## 7. 非機能要件
 
