@@ -385,7 +385,7 @@ THE System SHALL Beautiful_Defaults において `layout: "elk"` を既定とし
 | HTTP 層上限超で **即時 429** + `Retry-After`、Pool 層上限超で **wait 後 503** + `Retry-After` | REQ-S-03 | US-07 / 横断 |
 | `mermaid_config.__proto__` 等の Prototype Pollution payload を送信しても `Object.prototype` が改変されない | REQ-UN-06 | 横断 |
 | `timeout_ms=60000`(上限超)が `invalid_request` で 400、`error_field="timeout_ms"` / `error_constraint="out_of_range"` が含まれる | REQ-U-05, REQ-E-07, C-S-06 | US-05 / 横断 |
-| Mermaid_Config_Override の許可キー外(例: `startOnLoad`)が **無視 + 警告ログ**で処理継続 | REQ-E-06 | 横断 |
+| Mermaid_Config_Override の許可キー外の未知キー(例: `nonexistent_key`、`unsupportedDiagram` 等。`SERVER_LOCKED_SETTINGS` 該当キーには含まれないもの)は **無視 + 警告 `unknown_key`** で処理継続。`SERVER_LOCKED_SETTINGS` 該当キー(`securityLevel` / `maxTextSize` / `maxEdges` / `startOnLoad` / `secure`)は **無視 + 警告 `locked_setting_override_ignored`** | REQ-E-06 | 横断 |
 | `/metrics` で `render_total` / `render_duration_ms` / `browser_pool_in_use` 等を expose | NFR-05 | 横断 |
 | `RENDERER_MODE=cli` 切替で `mmdc` subprocess 経由のレンダリングが機能する | NFR-06 | 横断 |
 
@@ -430,7 +430,7 @@ THE System SHALL Programmatic API 実装の障害時に、環境変数 `RENDERER
 本要件定義書は親要件定義書(`mermaid-image-converter/requirements.md`)を**拡張**する位置付けであり、親要件のうち以下を**そのまま継承**する:
 
 - 要件 1(Mermaid コードの受付と画像変換)
-- 要件 2(エラー情報の透過的な返却)— ただし本改修で `error_message` / `line` フィールドを**追加**する
+- 要件 2(エラー情報の透過的な返却)— ただし本改修で `error_message` / `line` / `error_field` / `error_constraint` の 4 フィールドを**追加**する
 - 要件 3(入力検証)
 - 要件 4(タイムアウト処理)
 - 要件 5(同時実行制御)
@@ -438,7 +438,7 @@ THE System SHALL Programmatic API 実装の障害時に、環境変数 `RENDERER
 - 要件 7(一時ファイル管理)— Programmatic_API 採用により一時ファイル数は減るが、削除規約は維持
 - 要件 8(ヘルスチェック)
 - 要件 9(Docker 環境での動作)
-- 要件 10(レスポンス形式)— 本改修で失敗時 JSON にフィールドを**追加**する
+- 要件 10(レスポンス形式)— 本改修で失敗時 JSON に `error_message` / `line` / `error_field` / `error_constraint` の 4 フィールドを**追加**する
 - 要件 11(セキュリティ MVP)
 
 親要件と本要件で齟齬が発生した場合、本要件を優先する(より新しい意思決定であるため)。
