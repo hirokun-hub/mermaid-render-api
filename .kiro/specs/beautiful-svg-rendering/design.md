@@ -345,7 +345,7 @@ interface RenderContext {
   timeoutMs: number
   mermaidConfig: MermaidConfig         // マージ済(buildRequestMermaidConfig の結果)
   postProcess: NormalizedPostProcess   // default 値が埋まった正規化済
-  svgId: string                        // request_id 由来の一意 ID
+  svgId?: string                       // rewrite_ids=true 時のみセット。request_id 由来の一意 ID(§7.1)。false 時は undefined にして Mermaid 既定値に委ねる
   warnings: WarningCollector
 }
 ```
