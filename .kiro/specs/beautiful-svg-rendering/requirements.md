@@ -379,7 +379,7 @@ THE System SHALL Beautiful_Defaults において `layout: "elk"` を既定とし
 | `securityLevel: "loose"` を指定しても無視され、`strict` のままレンダリングされる | REQ-E-02, REQ-UN-01, REQ-U-06 | 横断 |
 | パース失敗時のレスポンスに `error_message` / `line` フィールドが含まれる | REQ-U-05, REQ-E-03, REQ-E-04 | US-05 |
 | 構文エラー時に "Syntax error" 図 SVG が返却されない | REQ-U-07 | US-05 |
-| 連続 100 リクエストで Puppeteer プロセスがリクエスト数に比例して増えない | REQ-U-08 | US-07 |
+| 連続 100 リクエストで Puppeteer **browser プロセス**がリクエスト数に比例して増えず、設計上の少数(recycle 一時 +1 含む)に収まる | REQ-U-08 | US-07 |
 | Browser_Pool 初期化前のリクエストが 503 を返す | REQ-S-01 | US-07 |
 | `format=png` で SVG 専用 Post_Process_Option を指定しても PNG が返る | REQ-E-05 | US-04 |
 | HTTP 層上限超で **即時 429** + `Retry-After`、Pool 層上限超で **wait 後 503** + `Retry-After` | REQ-S-03 | US-07 / 横断 |

@@ -97,11 +97,11 @@ sequenceDiagram
   Note over C,M: 新方式 Programmatic API
   C->>A: POST render
   A->>R: render code format
-  R->>P: acquire browser
-  P->>R: reuse pooled
+  R->>P: acquire context
+  P->>R: reuse pooled context
   R->>M: renderMermaid 100ms
   M->>R: svg or png
-  R->>P: release browser
+  R->>P: release context
   R->>A: result
   A->>C: 200 OK total 150ms
 ```
@@ -305,14 +305,18 @@ interface RenderInput {
 
 interface RenderResult {
   success: boolean
-  data?: Buffer
-  stderr?: string
+  data?: Buffer                        // adapter 内で正規化済(C-M-08 対策、下記)
+  rawErrorText?: string                // 内部変数名(API レスポンス上は stderr フィールド)
   exitCode?: number | null
   errorType?: ErrorType
   errorMessage?: string | null         // 新規(REQ-U-05)
   line?: number | null                 // 新規(REQ-E-04)
+  errorField?: string | null           // 新規(REQ-U-05、機械可読)
+  errorConstraint?: string | null      // 新規(REQ-U-05、機械可読)
 }
 ```
+
+**戻り値型の正規化(C-M-08)**: `renderMermaid` は v11.3.0 (2024-11-01) PR #767 で戻り値 `data` 型を `Buffer → Uint8Array` に変更している。adapter 層(`ProgrammaticAdapter`)で `Uint8Array` を **`Buffer.from(uint8array)`** で `Buffer` に正規化してから `RenderResult` に格納し、上位コードは常に `Buffer` を受け取れることを保証する。Mermaid CLI が将来再度型を変更しても、影響は adapter 内に閉じ込められる(NFR-06)。
 
 実装:
 - `BrowserPool.acquire()` で取得した `BrowserContext` をそのまま `renderMermaid(ctx, code, format, { mermaidConfig, svgId, ... })` に渡す。ただし `post_process.rewrite_ids === false` の場合は `svgId` を渡さない(省略して Mermaid 既定の `mermaid-1` 等を使わせる、§7.1.1)
@@ -369,7 +373,7 @@ class WarningCollector {
 ### 3.4 `src/server/app.ts` の拡張
 
 - リクエスト boundary でバリデータから返る `RenderInput` を `MermaidRenderer.render()` に渡す
-- レスポンス失敗時 JSON 組立に `error_message` / `line` を追加
+- レスポンス失敗時 JSON 組立に `error_message` / `line` / `error_field` / `error_constraint` の 4 フィールドを追加(`errorResponse.ts` の `buildErrorResponse()` に委譲、§13)
 - `Content-Type` 解決は `CONTENT_TYPE_MAP`(§3.1)を参照
 - Browser_Pool 未初期化検知時に 503 + `error_type=service_unavailable` を返却(REQ-S-01)
 
@@ -539,7 +543,7 @@ interface RenderContext {
 | **PROP-3** | `mermaid_config` 未指定リクエストの実際適用設定 = `BEAUTIFUL_DEFAULTS` | REQ-U-01, REQ-E-01 |
 | **PROP-4** | `format=png` + `post_process.strip_max_width=true` → PNG 200 + 警告ログ 1 件 | REQ-E-05 |
 | **PROP-5** | パース失敗時のレスポンス JSON で `line` が `null` または正の整数 | REQ-E-04 |
-| **PROP-6** | 100 連続リクエスト後、Puppeteer プロセス数 ≤ `BROWSER_POOL_SIZE` | REQ-U-08 |
+| **PROP-6** | 100 連続リクエスト後、Puppeteer **browser プロセス数**が設計上の少数(default 1〜2、`MAX_RENDERS_PER_BROWSER` / `MAX_BROWSER_AGE_MS` での recycle 中の一時的な +1 を含む)を超えない。**リクエスト数に比例して増えない**(BrowserContext 単位の pool により、process は少数で多数の context を hosting する想定) | REQ-U-08 |
 | **PROP-7** | Browser_Pool 初期化前にリクエスト → 503 + `error_type=service_unavailable` | REQ-S-01 |
 | **PROP-8** | `mermaid_config.flowchart.diagramPadding = 16` を指定 → 単独 `diagramPadding` 変更で他 `flowchart.*` キーが消えない(deep merge 検証) | REQ-E-01 |
 | **PROP-9** | `mermaid_config.themeCSS` の文字列長が上限超過 → HTTP 400 | REQ-UN-05 |
@@ -566,7 +570,7 @@ interface RenderContext {
 | タイムアウト | `setTimeout` で `renderMermaid()` を競争 → 勝敗 | `timeout` | 504 |
 | HTTP 層 同時受付上限超過(即時拒否、REQ-S-03) | RateLimiter が `RATE_LIMIT_MAX_INFLIGHT` 超で拒否 | `rate_limited` | 429 + `Retry-After` |
 | Pool 層 wait queue 満杯 / wait timeout 超過(REQ-S-03) | BrowserPool が `POOL_QUEUE_MAX` / `POOL_WAIT_TIMEOUT_MS` 超で拒否 | `service_unavailable` | 503 + `Retry-After` |
-| Browser_Pool 未初期化 / 全停止 | Pool 状態フラグ | `service_unavailable` | 503 |
+| Browser_Pool 未初期化 / 全停止 | Pool 状態フラグ | `service_unavailable` | 503 + `Retry-After`(起動中は短めの推奨値、例: `Retry-After: 5`) |
 
 **全エラー種別共通**: `error_message`(人間/LLM 可読)を必ず含める(REQ-U-05、`invalid_request` も含む)。バリデーション系は `error_field` / `error_constraint`(機械可読)を併せて返す。
 
@@ -726,7 +730,7 @@ flowchart TD
 - `vitest run`(unit + integration + property)が全て通る
 - 性能計測スクリプト(`scripts/perf-check.ts` を新規追加)で次を満たす:
   - 単純 flowchart(ノード 5 個以下)のレイテンシ中央値 ≤ **500ms**(NFR-01)
-  - 連続 100 リクエストで Puppeteer プロセス数が `BROWSER_POOL_SIZE` を超えない(PROP-6)
+  - 連続 100 リクエストで Puppeteer **browser プロセス数**がリクエスト数に比例せず、設計上の少数(recycle 一時 +1 含む)を超えない(PROP-6)
 - 視覚的回帰の人間判定は行わない(要件: AI 駆動)
 
 ### 8.4 切替時の安全策
