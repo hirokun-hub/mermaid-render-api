@@ -364,6 +364,7 @@ interface RenderContext {
 | **PROP-8** | `mermaid_config.flowchart.diagramPadding = 16` を指定 → 単独 `diagramPadding` 変更で他 `flowchart.*` キーが消えない(deep merge 検証) | REQ-E-01 |
 | **PROP-9** | `mermaid_config.themeCSS` の文字列長が上限超過 → HTTP 400 | REQ-UN-05 |
 | **PROP-10** | 構文エラー入力で SVG ボディ "Syntax error" を含まない | REQ-U-07 |
+| **PROP-11** | `mermaid_config.themeCSS` が `THEME_CSS_FORBIDDEN_PATTERNS` のいずれかを含む → HTTP 400 + `error_type=invalid_request` + 警告コード `theme_css_rejected` | REQ-UN-05 |
 
 各プロパティは `test/property/*.property.test.ts` に fast-check ベースで実装する(§9)。
 
@@ -409,7 +410,7 @@ flowchart TD
 ### 6.2 `extractMermaidError()` 規約
 
 ```ts
-function extractMermaidError(rawStderr: string): {
+function extractMermaidError(rawErrorText: string): {
   errorType: 'parse_error' | 'render_error'
   errorMessage: string | null
   line: number | null
@@ -433,14 +434,19 @@ function extractMermaidError(rawStderr: string): {
 
 `suppressErrorRendering: true` を `BEAUTIFUL_DEFAULTS` で固定。同設定下では Mermaid が `parse_error` を例外として throw するため、サーバ側で確実に捕捉できる。
 
-## 7. ID 衝突対策(軽量版)
+## 7. Post Process 設計
+
+本改修で実装する Post_Process_Option は **`rewrite_ids`(SVG 生成時に適用)** と **`strip_max_width`(SVG 生成後に適用)** の 2 種類。それぞれの責務と仕様を以下に定義する。
+
+### 7.1 ID 衝突対策(軽量版): `rewrite_ids`
 
 要件定義書 §8 で「同一ページ複数 SVG embed の完全対応は将来別票」と定めた。本改修では次のみ実装する:
 
 - `renderMermaid()` 呼出時に `svgId: \`mermaid-\${requestId}\`` を渡す
 - これにより SVG ルート要素の `id` 属性が `mermaid-<UUID>` となり、最低限の名前空間分離が達成される
+- 適用経路: **SVG 生成時**(`renderMermaid()` 引数経由、SVG 文字列を加工しない)
 
-### 7.1 `post_process.rewrite_ids` のフェーズ別セマンティクス
+#### 7.1.1 フェーズ別セマンティクス
 
 | 値 | Phase 1(本改修) | Phase 2(将来別票) |
 |---|---|---|
@@ -448,6 +454,18 @@ function extractMermaidError(rawStderr: string): {
 | `false` | Mermaid 既定 `svgId`(`mermaid-1` 等)で出力。ID 一意化を行わない | 同左 |
 
 > 注: Phase 1 では `rewrite_ids: true` の効果は **ルート ID 一意化のみ** であり、同一 HTML に複数 SVG embed すると `<marker id="arrowhead">` 等が衝突する(C-H-01 / 要件定義書 §8 Out of Scope)。Phase 2 は Phase 1 利用者の挙動を内包する形(superset)で拡張するため、`true` 指定の API 利用者は後方互換が保たれる。
+
+### 7.2 `max-width` インラインスタイル除去: `strip_max_width`
+
+- 適用経路: **SVG 生成後**(`src/renderer/postProcess.ts` で SVG 文字列を加工)
+- 対象: **ルート `<svg>` 要素の `style` 属性のみ**(子要素の `style` には触らない)
+- 処理: `style` 属性内の `max-width` CSS 宣言のみを **case-insensitive** で除去。他の宣言(`color`, `background`, `font-family` 等)は保持する
+- 例:
+  - Before: `<svg ... style="max-width: 300px; color: black;">` → After: `<svg ... style="color: black;">`
+  - Before: `<svg ... style="max-width: 300px;">` → After: `<svg ... >`(`style` 属性が空になるため属性ごと削除)
+  - Before: `<svg ... style="MAX-WIDTH:300PX">` → After: `<svg ... >`(大小文字無視)
+- 既定動作: `Beautiful_Defaults` の `useMaxWidth: false` 下では Mermaid が `style="max-width:..."` を付与しないため、通常は **no-op**。`useMaxWidth: true` をユーザーが Mermaid_Config_Override で上書きした場合や、将来 Mermaid 側挙動が変わった場合の防御として残す
+- `format=png` 同時指定時の扱い: REQ-E-05 に従い無視 + 警告ログ(`svg_only_option_in_png`)
 
 ## 8. デプロイ戦略(test Docker → prod Docker 差し替え)
 
