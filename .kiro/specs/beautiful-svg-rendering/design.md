@@ -208,7 +208,7 @@ interface RenderInput {
   timeoutMs: number
   mermaidConfig: MermaidConfig        // 既にマージ済(buildRequestMermaidConfig の結果)
   postProcess?: PostProcessOption
-  svgId: string                       // request_id 由来の一意 ID(§7)
+  svgId?: string                      // rewrite_ids=true 時のみセット。request_id 由来の一意 ID(§7)。false 時は undefined にして Mermaid 既定値に委ねる
 }
 
 interface RenderResult {
@@ -223,7 +223,7 @@ interface RenderResult {
 ```
 
 実装:
-- `renderMermaid(browser, code, format, { mermaidConfig, svgId, ... })` を呼出
+- `renderMermaid(browser, code, format, { mermaidConfig, svgId, ... })` を呼出する。ただし `post_process.rewrite_ids === false` の場合は `svgId` を渡さない(省略して Mermaid 既定の `mermaid-1` 等を使わせる、§7.1.1)
 - 例外/エラーは `extractMermaidError()`(下記 §6)で構造化
 - 成功時に `postProcess` を適用(§7)
 - 一時ファイル不要(`mmdc --configFile` ルート廃止)
@@ -442,8 +442,9 @@ function extractMermaidError(rawErrorText: string): {
 
 要件定義書 §8 で「同一ページ複数 SVG embed の完全対応は将来別票」と定めた。本改修では次のみ実装する:
 
-- `renderMermaid()` 呼出時に `svgId: \`mermaid-\${requestId}\`` を渡す
+- `post_process.rewrite_ids === true`(default)時のみ、`renderMermaid()` 呼出時に `svgId: \`mermaid-\${requestId}\`` を渡す
 - これにより SVG ルート要素の `id` 属性が `mermaid-<UUID>` となり、最低限の名前空間分離が達成される
+- `rewrite_ids === false` 時は `svgId` を渡さず、Mermaid 既定値(`mermaid-1` 等)で出力する
 - 適用経路: **SVG 生成時**(`renderMermaid()` 引数経由、SVG 文字列を加工しない)
 
 #### 7.1.1 フェーズ別セマンティクス
