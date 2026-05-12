@@ -1,4 +1,9 @@
-import { MAX_CODE_SIZE, SUPPORTED_FORMATS } from '../config.js'
+import {
+  DEFAULT_FORMAT,
+  MAX_CODE_SIZE,
+  SUPPORTED_FORMATS,
+  type SupportedFormat
+} from '../config.js'
 
 export interface RenderRequestInput {
   code?: unknown
@@ -15,12 +20,10 @@ export interface ValidateResultError {
 
 export interface ValidationResult {
   valid: boolean
-  normalizedFormat: (typeof SUPPORTED_FORMATS)[number]
+  normalizedFormat: SupportedFormat
   requestedFormat: string
   error?: ValidateResultError
 }
-
-const DEFAULT_FORMAT: ValidationResult['normalizedFormat'] = 'svg'
 
 function createInvalidRequest(message: string): ValidateResultError {
   return {

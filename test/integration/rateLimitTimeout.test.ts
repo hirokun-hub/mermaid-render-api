@@ -4,6 +4,7 @@ import { httpRequest } from '../helpers/http.js'
 import { startTestServer } from '../helpers/server.js'
 import { sleep } from '../helpers/sleep.js'
 import { MermaidRenderer } from '../../src/renderer/mermaidRenderer.js'
+import { RATE_LIMIT_MAX_INFLIGHT } from '../../src/config.js'
 
 const validCode = 'graph TD\nA-->B'
 
@@ -30,7 +31,9 @@ describe('rate limit and timeout handling', () => {
           body: payload
         })
 
-      const responses = await Promise.all([send(), send(), send()])
+      const responses = await Promise.all(
+        Array.from({ length: RATE_LIMIT_MAX_INFLIGHT + 1 }, send)
+      )
       const statuses = responses.map((response) => response.status)
 
       expect(statuses.filter((status) => status === 429).length).toBe(1)

@@ -4,6 +4,7 @@ import { httpRequest } from '../helpers/http.js'
 import { startTestServer } from '../helpers/server.js'
 import { MermaidRenderer } from '../../src/renderer/mermaidRenderer.js'
 import { sleep } from '../helpers/sleep.js'
+import { RATE_LIMIT_MAX_INFLIGHT } from '../../src/config.js'
 
 const validCode = 'graph TD\nA-->B'
 
@@ -58,14 +59,16 @@ describe('Property 8: Rate limit responses', () => {
     const server = await startTestServer()
     try {
       await fc.assert(
-        fc.asyncProperty(fc.integer({ min: 2, max: 5 }), async (count) => {
+        fc.asyncProperty(fc.integer({ min: 1, max: 3 }), async (extraCount) => {
           const payload = JSON.stringify({ code: validCode, format: 'svg' })
-          const requests = Array.from({ length: count + 2 }, () =>
-            httpRequest(`${server.baseUrl}/render`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: payload
-            })
+          const requests = Array.from(
+            { length: RATE_LIMIT_MAX_INFLIGHT + extraCount },
+            () =>
+              httpRequest(`${server.baseUrl}/render`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload
+              })
           )
 
           const responses = await Promise.all(requests)

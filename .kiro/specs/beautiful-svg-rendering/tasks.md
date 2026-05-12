@@ -62,64 +62,67 @@
 
 ### A-1 `src/config.ts` 定数集約(P-01)
 
-- [ ] `BEAUTIFUL_DEFAULTS`(`useMaxWidth: false`、`htmlLabels: true`(REQ-UN-02 / C-M-03)、`themeCSS` 既定、`suppressErrorRendering: true`、`flowchart.diagramPadding: 0`、`flowchart.nodeSpacing`、`flowchart.rankSpacing`、`flowchart.curve`、`flowchart.wrappingWidth`、`flowchart.defaultRenderer: "dagre-wrapper"`(REQ-UN-03 / C-M-04))を定義
-- [ ] `SERVER_LOCKED_SETTINGS`(`securityLevel: "strict"`(REQ-U-06), `maxTextSize: 50000`, `maxEdges: 500`, `startOnLoad: false`, `secure: <v11 既定>`)を定義
-- [ ] `CONTENT_TYPE_MAP` を `src/server/app.ts` ローカル定義から本ファイルへ移動(DRY 改善)
-- [ ] `DEFAULT_FORMAT = 'svg'` を `inputValidator.ts` ハードコードから本ファイルへ移動(DRY 改善)
-- [ ] `RATE_LIMIT_MAX_INFLIGHT = 15`、`POOL_QUEUE_MAX = 20`、`POOL_WAIT_TIMEOUT_MS = 3000`
-- [ ] `MIN_TIMEOUT_MS = 1000`、`MAX_TIMEOUT_MS = 30000`
-- [ ] `MAX_RENDERS_PER_CONTEXT = 100`、`MAX_RENDERS_PER_BROWSER = 1000`、`MAX_BROWSER_AGE_MS = 3600000`
-- [ ] `RESERVED_BODY_OVERHEAD_BYTES = 16384`、`BODY_LIMIT_BYTES = MAX_CODE_SIZE * 2 + RESERVED_BODY_OVERHEAD_BYTES`(派生定数)
-- [ ] `MAX_THEME_CSS_LENGTH`、`THEME_CSS_FORBIDDEN_PATTERNS`
-- [ ] `RENDERER_MODE`(`programmatic | cli`)環境変数解析
-- [ ] [TDD] 既存 `toPositiveInt()` の境界値(0 / 負数 / NaN / 文字列)テスト
-- [ ] [TDD] `BODY_LIMIT_BYTES` が `MAX_CODE_SIZE` 変更に追従するテスト
+- [x] `BEAUTIFUL_DEFAULTS`(`useMaxWidth: false`、`htmlLabels: true`(REQ-UN-02 / C-M-03)、`themeCSS` 既定、`suppressErrorRendering: true`、`flowchart.diagramPadding: 0`、`flowchart.nodeSpacing`、`flowchart.rankSpacing`、`flowchart.curve`、`flowchart.wrappingWidth`、`flowchart.defaultRenderer: "dagre-wrapper"`(REQ-UN-03 / C-M-04))を定義
+- [x] `SERVER_LOCKED_SETTINGS`(`securityLevel: "strict"`(REQ-U-06), `maxTextSize: 50000`, `maxEdges: 500`, `startOnLoad: false`)を定義(`secure` は将来の Mermaid v11 既定値追従リスクを避けるため `SERVER_LOCKED_SETTINGS` には含めず、`LOCKED_SETTING_KEYS` 経由で strip + warn して runtime の Mermaid v11 既定値を採用させる)
+- [x] `CONTENT_TYPE_MAP` を `src/server/app.ts` ローカル定義から本ファイルへ移動(DRY 改善)
+- [x] `DEFAULT_FORMAT = 'svg'` を `inputValidator.ts` ハードコードから本ファイルへ移動(DRY 改善)
+- [x] `RATE_LIMIT_MAX_INFLIGHT = 15`、`POOL_QUEUE_MAX = 20`、`POOL_WAIT_TIMEOUT_MS = 3000`
+- [x] `MIN_TIMEOUT_MS = 1000`、`MAX_TIMEOUT_MS = 30000`
+- [x] `MAX_RENDERS_PER_CONTEXT = 100`、`MAX_RENDERS_PER_BROWSER = 1000`、`MAX_BROWSER_AGE_MS = 3600000`
+- [x] `RESERVED_BODY_OVERHEAD_BYTES = 16384`、`BODY_LIMIT_BYTES = MAX_CODE_SIZE * 2 + RESERVED_BODY_OVERHEAD_BYTES`(派生定数)
+- [x] `MAX_THEME_CSS_LENGTH`、`THEME_CSS_FORBIDDEN_PATTERNS`
+- [x] `RENDERER_MODE`(`programmatic | cli`)環境変数解析
+- [x] [TDD] 既存 `toPositiveInt()` の境界値(0 / 負数 / NaN / 文字列)テスト
+- [x] [TDD] `BODY_LIMIT_BYTES` が `MAX_CODE_SIZE` 変更に追従するテスト
 
 ### A-2 `src/utils/safeDeepMerge.ts` 新規(P-02-1)
 
-- [ ] [TDD] 失敗テスト先行: `__proto__` / `constructor` / `prototype` キーが結果オブジェクトに含まれない(PROP-12)
-- [ ] [TDD] 失敗テスト先行: `Object.prototype.polluted` がリクエスト後も未定義
-- [ ] [TDD] 失敗テスト先行: ネストされた `{ a: { __proto__: { x: 1 } } }` 形の payload も再帰的に弾く
-- [ ] [TDD] 失敗テスト先行: `Mermaid_Config_Override` 経由(例 `{ mermaid_config: { __proto__: { polluted: true } } }`)で警告 `prototype_pollution_attempt` 記録(REQ-UN-06 第 1 対象)
-- [ ] [TDD] 失敗テスト先行: `Post_Process_Option` 経由(例 `{ post_process: { __proto__: { polluted: true } } }` および `{ post_process: { constructor: { prototype: { x: 1 } } } }`)で同様に検出・警告(REQ-UN-06 第 2 対象)
-- [ ] `FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype'])` 定義
-- [ ] `Object.create(null)` でプロトタイプチェーン排除、`Object.entries()` で iterate(`for...in` 禁止)
-- [ ] 検出時は `WarningCollector.add('prototype_pollution_attempt', { key })` で記録し、当該キーをスキップして処理継続
-- [ ] [TDD] deep merge 順序保証: `flowchart.diagramPadding` だけ override しても他 `flowchart.*` キーが消えない(PROP-8)
+- [x] [TDD] 失敗テスト先行: `__proto__` / `constructor` / `prototype` キーが結果オブジェクトに含まれない(PROP-12)
+- [x] [TDD] 失敗テスト先行: `Object.prototype.polluted` がリクエスト後も未定義
+- [x] [TDD] 失敗テスト先行: ネストされた `{ a: { __proto__: { x: 1 } } }` 形の payload も再帰的に弾く
+- [x] [TDD] 失敗テスト先行: `Mermaid_Config_Override` 経由(例 `{ mermaid_config: { __proto__: { polluted: true } } }`)で警告 `prototype_pollution_attempt` 記録(REQ-UN-06 第 1 対象)
+- [x] [TDD] 失敗テスト先行: `Post_Process_Option` 経由(例 `{ post_process: { __proto__: { polluted: true } } }` および `{ post_process: { constructor: { prototype: { x: 1 } } } }`)で同様に検出・警告(REQ-UN-06 第 2 対象)
+- [x] `FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype'])` 定義
+- [x] `Object.create(null)` でプロトタイプチェーン排除、`Object.entries()` で iterate(`for...in` 禁止)
+- [x] 検出時は `WarningCollector.add('prototype_pollution_attempt', { key })` で記録し、当該キーをスキップして処理継続
+- [x] [TDD] deep merge 順序保証: `flowchart.diagramPadding` だけ override しても他 `flowchart.*` キーが消えない(PROP-8)
 
 ### A-3 `src/utils/extractMermaidError.ts` 新規(P-02-2)
 
-- [ ] [TDD] 失敗テスト先行: `"Parse error on line 3:"` 文字列から `{ errorMessage, line: 3 }` を抽出
-- [ ] [TDD] 失敗テスト先行: 行番号が無いエラー(`"Error: ..."`)では `line: null`
-- [ ] [TDD] 失敗テスト先行: 構文エラー入力の SVG ボディに `"Syntax error"` が含まれないことを検証(PROP-10 先行 RED)
-- [ ] 正規表現適用順を明示(`/Parse error on line (\d+):/` → `/Lexical error on line (\d+):/` → `/Error: (.+)/` の順)
-- [ ] C-M-06: `line` は参考値、UI 上は「N 行目付近」と表現する旨を JSDoc に記載
+- [x] [TDD] 失敗テスト先行: `"Parse error on line 3:"` 文字列から `{ errorType: 'parse_error', errorMessage, line: 3 }` を抽出
+- [x] [TDD] 失敗テスト先行: 行番号が無いエラー(`"Error: ..."`)では `{ errorType: 'render_error', line: null }`
+- [x] [TDD] 失敗テスト先行: 構文エラー入力の SVG ボディに `"Syntax error"` が含まれないことを検証(PROP-10 先行 RED)
+- [x] [TDD] 失敗テスト先行: スタックトレース(`\n    at ...`)や後続 `Error:` 行が `errorMessage` に混入しないことを検証(design.md §6.2 の終端 lookahead)
+- [x] 正規表現は design.md §6.2 と同一(`/Parse error on line\s+(\d+):\s*([\s\S]*?)(?=\n\s*at\s|\nError:|\n\n|$)/i` → `Lexical` 同形 → `/Error:\s*([\s\S]*?)(?=\n\s*at\s|$)/i` の順)、line/message を 1 回の match で同時 capture
+- [x] 戻り値型に `errorType: 'parse_error' | 'render_error'` を含める(`Parse error` / `Lexical error` パターン match → `parse_error`、`Error:` のみ / 非 match → `render_error`)。design.md §6.1 のエラー種別マッピングを util 1 箇所に集約
+- [x] C-M-06: `line` は参考値、UI 上は「N 行目付近」と表現する旨を JSDoc に記載
 
 ### A-4 `src/utils/warnings.ts` 新規(P-02-3)
 
-- [ ] `WarningCode` enum 定義: `unknown_key` / `locked_setting_override_ignored` / `prototype_pollution_attempt` / `svg_only_option_in_png` / `theme_css_rejected`
-- [ ] `WarningCollector` クラス: `add(code, detail)` / `drain(): Warning[]`
-- [ ] [TDD] `add` 累積 → `drain` 一括取得 → 再 `drain` で空配列
+- [x] `WarningCode` enum 定義: `unknown_key` / `locked_setting_override_ignored` / `prototype_pollution_attempt` / `svg_only_option_in_png` / `theme_css_rejected`
+- [x] `WarningCollector` クラス: `add(code, detail)` / `drain(): Warning[]`
+- [x] [TDD] `add` 累積 → `drain` 一括取得 → 再 `drain` で空配列
 
 ### A-5 `src/config.ts` `buildRequestMermaidConfig()` 関数(P-02-4)
 
-- [ ] [TDD] 失敗テスト先行: マージ優先順位 `BEAUTIFUL_DEFAULTS → user mermaid_config → SERVER_LOCKED_SETTINGS` の最終結果検証(PROP-3)
-- [ ] [TDD] 失敗テスト先行: `mermaid_config.securityLevel = "loose"` 指定でも最終 `securityLevel = "strict"`、警告 `locked_setting_override_ignored` 1 件記録(PROP-2 先行 RED、REQ-E-02)
-- [ ] [TDD] 失敗テスト先行: SERVER_LOCKED_SETTINGS キーを上書きしようとすると警告 `locked_setting_override_ignored`(PROP-15 後半)
-- [ ] `safeDeepMerge` を 2 回呼ぶ実装(base ← user、result ← locked)
+- [x] [TDD] 失敗テスト先行: マージ優先順位 `BEAUTIFUL_DEFAULTS → user mermaid_config → SERVER_LOCKED_SETTINGS` の最終結果検証(PROP-3)
+- [x] [TDD] 失敗テスト先行: `mermaid_config.securityLevel = "loose"` 指定でも最終 `securityLevel = "strict"`、警告 `locked_setting_override_ignored` 1 件記録(PROP-2 先行 RED、REQ-E-02)
+- [x] [TDD] 失敗テスト先行: SERVER_LOCKED_SETTINGS キーを top-level / ネスト両方で上書き試行 → 警告 `locked_setting_override_ignored` + **当該キーが結果オブジェクトから除去されること**(PROP-15 後半)
+- [x] [TDD] 失敗テスト先行: `secure` override は除去され、結果に `secure` が含まれない(runtime で Mermaid v11 既定値が残る)
+- [x] 実装は 3 段階: ① `stripLockedSettingsAndWarn` で user override から locked key を再帰除去 + 警告 → ② `safeDeepMerge(BEAUTIFUL_DEFAULTS, stripped)` → ③ `safeDeepMerge(merged, SERVER_LOCKED_SETTINGS)` の最終強制適用
 
 ### A-6 `src/renderer/mermaidRendererAdapter.ts` 新規(P-03 interface のみ)
 
-- [ ] `MermaidRendererAdapter` interface: `render(input: RenderInput): Promise<RenderResult>` / `close(): Promise<void>`
-- [ ] `RenderInput` 型: `requestId`, `code`, `format`, `timeoutMs`, `mermaidConfig`, `postProcess?`, `svgId?`
-- [ ] `RenderResult` 型: `success`, `data?: Buffer`, `rawErrorText?`, `exitCode?`, `errorType?`, `errorMessage?`, `line?`, `errorField?`, `errorConstraint?`
-- [ ] 実装(Programmatic / CliFallback)は Phase 1 で行う、本タスクは interface + 型のみ
+- [x] `MermaidRendererAdapter` interface: `render(input: RenderInput): Promise<RenderResult>` / `close(): Promise<void>`
+- [x] `RenderInput` 型: `requestId`, `code`, `format`, `timeoutMs`, `mermaidConfig`, `postProcess?`, `svgId?`
+- [x] `RenderResult` 型: `success`, `data?: Buffer`, `rawErrorText?`, `exitCode?`, `errorType?`, `errorMessage?`, `line?`, `errorField?`, `errorConstraint?`
+- [x] 実装(Programmatic / CliFallback)は Phase 1 で行う、本タスクは interface + 型のみ
 
 ### Phase 0 受入基準
 
-- [ ] `vitest run test/unit/` で PROP-3, 8, 12, 14, 15 関連テスト全 green
-- [ ] `grep -nE "magic.*number|hardcoded" src/` で残存ゼロ(定数局所化)
-- [ ] `tsc --noEmit` で型エラーなし
+- [x] `vitest run test/unit/` で PROP-3, 8, 12, 14, 15 関連テスト全 green
+- [x] `grep -nE "magic.*number|hardcoded" src/` で残存ゼロ(定数局所化)
+- [x] `tsc --noEmit` で型エラーなし
 
 ### Phase 0 対象ファイル
 

@@ -1,6 +1,11 @@
 import express, { Request, Response } from 'express'
 
-import { DEFAULT_TIMEOUT_MS, MAX_CONCURRENT_RENDERERS } from '../config.js'
+import {
+  BODY_LIMIT_BYTES,
+  CONTENT_TYPE_MAP,
+  DEFAULT_TIMEOUT_MS,
+  RATE_LIMIT_MAX_INFLIGHT
+} from '../config.js'
 import { generateRequestId } from '../utils/requestId.js'
 import { logRequest, logResponse, logError } from '../utils/logger.js'
 import { validateRenderRequest } from '../validation/inputValidator.js'
@@ -9,13 +14,9 @@ import { RateLimiter } from '../limiter/rateLimiter.js'
 
 const app = express()
 const renderer = new MermaidRenderer()
-const rateLimiter = new RateLimiter(MAX_CONCURRENT_RENDERERS)
-const CONTENT_TYPE_MAP: Record<'svg' | 'png', string> = {
-  svg: 'image/svg+xml',
-  png: 'image/png'
-}
+const rateLimiter = new RateLimiter(RATE_LIMIT_MAX_INFLIGHT)
 
-app.use(express.json({ limit: '128kb' }))
+app.use(express.json({ limit: BODY_LIMIT_BYTES, strict: true }))
 
 app.post('/render', async (req: Request, res: Response) => {
   const requestId = generateRequestId()

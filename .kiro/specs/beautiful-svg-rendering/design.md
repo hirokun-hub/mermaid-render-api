@@ -182,7 +182,8 @@ sequenceDiagram
 | `maxTextSize` | `50000` | C-S-02 |
 | `maxEdges` | `500` | C-S-02 |
 | `startOnLoad` | `false` | サーバサイド render では auto-init 不要、ユーザー上書きを拒否(security-sensitive) |
-| `secure` | Mermaid v11 既定値を維持(上書き不可) | trusted top-level config キーの allowlist、ユーザー上書きを拒否(security-sensitive) |
+
+> 注: `secure` は trusted top-level config キーの allowlist(security-sensitive)だが、Mermaid v11 既定値の追従リスクを避けるため `SERVER_LOCKED_SETTINGS` には含めない。代わりに `LOCKED_SETTING_KEYS`(strip 対象)に列挙し、user override が来た時点で除去 + 警告(`locked_setting_override_ignored`)することで runtime に Mermaid v11 既定値を残す。「上書き不可」の効果は `SERVER_LOCKED_SETTINGS` 経由でも `LOCKED_SETTING_KEYS` 経由でも同等。
 
 #### 関数
 
@@ -388,6 +389,14 @@ class WarningCollector {
 ```
 
 deep merge は浅い merge ではなく、`flowchart.diagramPadding` 単独指定でも他の `flowchart.*` キーが消えないように再帰的に行う。
+
+#### 実装ステップ(`buildRequestMermaidConfig`)
+
+Phase 2 validator(`inputValidator.ts`)が未到達でも `buildRequestMermaidConfig` 単体で REQ-E-02 / REQ-UN-01 / REQ-E-06 の挙動契約が成立するよう、本関数内で **3 段階** に処理する:
+
+1. `stripLockedSettingsAndWarn(userOverride)` — user override を再帰走査し、`LOCKED_SETTING_KEYS`(`securityLevel` / `maxTextSize` / `maxEdges` / `startOnLoad` / `secure`)に該当するキーを **除去 + 警告 `locked_setting_override_ignored`**。warning だけ記録して merge 後に top-level 強制適用に頼る形は、ネストされた locked key(例 `flowchart.maxEdges`)が結果に残るため不採用
+2. `safeDeepMerge(BEAUTIFUL_DEFAULTS, stripped, warnings)` — 既定値の上に sanitized override を再帰マージ
+3. `safeDeepMerge(merged, SERVER_LOCKED_SETTINGS, warnings)` — 最終強制適用(strip を通り抜けた万一のケースに対する二重ガード)
 
 #### `safeDeepMerge` の必須要件(C-S-04 / REQ-UN-06)
 
