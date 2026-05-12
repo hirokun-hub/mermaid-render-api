@@ -306,13 +306,13 @@
     - `browser_pool_in_use` Gauge
     - `browser_pool_queue_size` Gauge
     - `render_timeout_total` Counter
-    - `browser_restarts_total{reason}` Counter(reason: `max_uses` | `max_age` | `health_check`)
-    - `validation_error_total{field}` Counter
+    - `browser_restarts_total{reason}` Counter(reason: `max_uses` | `max_age` | `crash` — design.md §4.1 と一致。`health_check` 起因の restart も `crash` ラベルに集約)
+    - `validation_error_total{field, constraint}` Counter
 - [ ] `GET /metrics`: Prometheus text format
 - [ ] `GET /livez`: 常時 200(プロセス生存判定)
 - [ ] `GET /readyz`: 以下 2 条件すべて成立で 200、それ以外 503(requirements.md §5.2):
   - (a) BrowserPool が 1 BrowserContext 以上 acquire 可能(初期化完了 + 全停止していない)
-  - (b) 直近 5 分のリクエストエラー率 < 50%(`render_total{result="success"}` / `render_total` で算出、サンプル数閾値: ≥ 10 リクエスト未満なら (a) のみで判定)
+  - (b) 直近 5 分のリクエストエラー率 < 50%(`render_total{result="ok"}` / `render_total` で算出、サンプル数閾値: ≥ 10 リクエスト未満なら (a) のみで判定)
 - [ ] エラー率算出のための 5 分スライディングウィンドウ集計を observability 層に追加
 - [ ] [TDD] 失敗テスト先行: BrowserPool 全停止状態 → `/readyz` 503
 - [ ] [TDD] 失敗テスト先行: 直近 5 分で 10 件中 6 件失敗(60%)→ `/readyz` 503
@@ -515,7 +515,7 @@
   4. `docker compose up -d` でローリング再起動(コンテナ ID 入れ替え)
   5. `curl /livez` `/readyz` `/metrics` で疎通確認
 - [ ] **5 分監視ポイント**:
-  - `render_total{result="success"}` カウンタ増加(リクエスト流入確認)
+  - `render_total{result="ok"}` カウンタ増加(リクエスト流入確認)
   - `render_timeout_total` 急増なし
   - `browser_restarts_total` 安定(初期 +1〜2 のみ、以降増えない)
   - `browser_pool_in_use` がピーク時も `POOL_QUEUE_MAX` 未満
