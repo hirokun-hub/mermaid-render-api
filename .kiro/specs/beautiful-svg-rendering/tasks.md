@@ -4,7 +4,7 @@
 
 ### 0.1 目的
 
-`requirements.md` / `design.md` を MVP として実装するための作業手順。各タスクは設計書 §12 実装フェーズ(P-01〜P-15)を機能ブロック単位に束ねた **7 タスク(T-A〜T-G)** で構成する。
+`requirements.md` / `design.md` を MVP として実装するための作業手順。各タスクは設計書 §12 実装フェーズ(P-01〜P-15)を機能ブロック単位に束ねた **7 タスク(Phase 0〜Phase 6)** で構成する。
 
 ### 0.2 開発方針
 
@@ -20,15 +20,15 @@
 ### 0.3 タスク依存グラフ
 
 ```
-       T-A (基盤層)
+       Phase 0 (基盤層)
        /  |  \
-     T-B T-C T-D     ← 並行可能(T-A 完了後)
+     Phase 1 Phase 2 Phase 3     ← 並行可能(Phase 0 完了後)
        \  |  /
-        T-E (統合)
+        Phase 4 (統合)
          |
-        T-F (テスト集約)
+        Phase 5 (テスト集約)
          |
-        T-G (デプロイ + 性能計測)
+        Phase 6 (デプロイ + 性能計測)
 ```
 
 ### 0.4 凡例
@@ -43,17 +43,17 @@
 
 | ID | タイトル | 含む P-* | 主な検証(PROP) | 依存 |
 |---|---|---|---|---|
-| **T-A** | 基盤層(定数 + ユーティリティ + アダプタ IF) | P-01, P-02, P-03 | 3, 8, 12, 14, 15 | — |
-| **T-B** | レンダリング層(BrowserPool + Adapter 実装) | P-04 | 6, 7, 16 | T-A |
-| **T-C** | 入力 / エラー層(validator + errorResponse) | P-05, P-06 | 5, 9, 11, 13(part), 14, 15 | T-A |
-| **T-D** | 観測 / レート制御層(observability + rateLimiter) | P-07, P-08 | 13, 17 | T-A |
-| **T-E** | サーバ統合 + 依存更新 + Docker | P-09, P-10, P-11 | 1, 2, 4, 7, 10, 16 | T-B, T-C, T-D |
-| **T-F** | テスト集約(property 17 個 + integration) | P-12 | 1〜17 | T-E |
-| **T-G** | デプロイ + 性能計測(blue/green + NFR-01) | P-13, P-14, P-15 | NFR-01 達成判定 | T-F |
+| **Phase 0** | 基盤層(定数 + ユーティリティ + アダプタ IF) | P-01, P-02, P-03 | 3, 8, 12, 14, 15 | — |
+| **Phase 1** | レンダリング層(BrowserPool + Adapter 実装) | P-04 | 6, 7, 16 | Phase 0 |
+| **Phase 2** | 入力 / エラー層(validator + errorResponse) | P-05, P-06 | 5, 9, 11, 13(part), 14, 15 | Phase 0 |
+| **Phase 3** | 観測 / レート制御層(observability + rateLimiter) | P-07, P-08 | 13, 17 | Phase 0 |
+| **Phase 4** | サーバ統合 + 依存更新 + Docker | P-09, P-10, P-11 | 1, 2, 4, 7, 10, 16 | Phase 1, Phase 2, Phase 3 |
+| **Phase 5** | テスト集約(property 17 個 + integration) | P-12 | 1〜17 | Phase 4 |
+| **Phase 6** | デプロイ + 性能計測(blue/green + NFR-01) | P-13, P-14, P-15 | NFR-01 達成判定 | Phase 5 |
 
 ---
 
-## 1. T-A 基盤層
+## 1. Phase 0 基盤層
 
 **Validates:** REQ-U-01, REQ-U-03, REQ-U-06, REQ-E-01, REQ-E-02, REQ-E-06, REQ-UN-01, REQ-UN-02, REQ-UN-03, REQ-UN-06, NFR-06, C-M-03, C-M-04, C-M-08, C-S-04, C-S-06
 **PROP:** 3, 8, 12, 14, 15
@@ -113,15 +113,15 @@
 - [ ] `MermaidRendererAdapter` interface: `render(input: RenderInput): Promise<RenderResult>` / `close(): Promise<void>`
 - [ ] `RenderInput` 型: `requestId`, `code`, `format`, `timeoutMs`, `mermaidConfig`, `postProcess?`, `svgId?`
 - [ ] `RenderResult` 型: `success`, `data?: Buffer`, `rawErrorText?`, `exitCode?`, `errorType?`, `errorMessage?`, `line?`, `errorField?`, `errorConstraint?`
-- [ ] 実装(Programmatic / CliFallback)は T-B で行う、本タスクは interface + 型のみ
+- [ ] 実装(Programmatic / CliFallback)は Phase 1 で行う、本タスクは interface + 型のみ
 
-### T-A 受入基準
+### Phase 0 受入基準
 
 - [ ] `vitest run test/unit/` で PROP-3, 8, 12, 14, 15 関連テスト全 green
 - [ ] `grep -nE "magic.*number|hardcoded" src/` で残存ゼロ(定数局所化)
 - [ ] `tsc --noEmit` で型エラーなし
 
-### T-A 対象ファイル
+### Phase 0 対象ファイル
 
 | 種別 | パス |
 |---|---|
@@ -137,12 +137,12 @@
 
 ---
 
-## 2. T-B レンダリング層
+## 2. Phase 1 レンダリング層
 
 **Validates:** REQ-U-04, REQ-U-08, REQ-S-01, REQ-S-02, NFR-06, 親要件「要件 4(タイムアウト)」継承, C-M-08, C-M-10, C-P-01, C-P-02, C-P-04, C-S-05, C-S-06
 **PROP:** 6, 7, 16
-**依存:** T-A 完了
-**並行可能:** T-C, T-D と並行
+**依存:** Phase 0 完了
+**並行可能:** Phase 2, Phase 3 と並行
 
 ### B-1 BrowserPool skeleton(P-04-1)
 
@@ -205,7 +205,7 @@
 - [ ] `post_process_ms` を計測して構造化ログに出力(NFR-05)
 - [ ] `format=png` 時は SVG 加工をスキップ(警告は C-1 / E-2 側で発生済)
 
-### T-B 受入基準
+### Phase 1 受入基準
 
 - [ ] `vitest run test/integration/browserPool.test.ts` で PROP-6, 7 green
 - [ ] `RENDERER_MODE=cli npm start` で起動 → PROP-16 green(レイテンシ劣化は許容)
@@ -216,7 +216,7 @@
   - [ ] **HTTP 統合テスト**(validator 経由、`MIN_TIMEOUT_MS=1000` 制約遵守)では `timeout_ms=1000` + 内部で人為的に重い render(`page.waitForTimeout(5000)` 等のスタブ)→ HTTP 504、`browser_pool_in_use` がリーク無く元値に戻る
 - [ ] postProcess unit test: `strip_max_width` の 6 ケース(true/false × 単独/複合/大小混在/子要素影響なし)green
 
-### T-B 対象ファイル
+### Phase 1 対象ファイル
 
 | 種別 | パス |
 |---|---|
@@ -233,12 +233,12 @@
 
 ---
 
-## 3. T-C 入力 / エラー層
+## 3. Phase 2 入力 / エラー層
 
 **Validates:** REQ-U-04, REQ-U-05, REQ-E-03, REQ-E-04, REQ-E-05, REQ-E-06, REQ-E-07, REQ-S-03(HTTP 429 部分), REQ-UN-05, C-S-06
 **PROP:** 5, 9, 11, 13(HTTP 429 部分), 14, 15
-**依存:** T-A 完了
-**並行可能:** T-B, T-D と並行
+**依存:** Phase 0 完了
+**並行可能:** Phase 1, Phase 3 と並行
 
 ### C-1 `inputValidator` 拡張(P-05)
 
@@ -262,18 +262,18 @@
 - [ ] `src/server/errorResponse.ts` 新規:
   - [ ] [TDD] 失敗テスト先行: 4 フィールド統一組立 `{ error_message, line, error_field, error_constraint }`(parse_error / invalid_request / render_error / timeout / service_unavailable それぞれで)
   - [ ] [TDD] 失敗テスト先行: HTTP 429 応答時に `Retry-After` ヘッダ付与(PROP-13 前半)
-  - [ ] [TDD] 失敗テスト先行: HTTP 503 応答時に `Retry-After` ヘッダ付与(PROP-13 後半は T-D + T-E で完成)
+  - [ ] [TDD] 失敗テスト先行: HTTP 503 応答時に `Retry-After` ヘッダ付与(PROP-13 後半は Phase 3 + Phase 4 で完成)
   - [ ] [TDD] 失敗テスト先行: parse_error 時 `line` が `null` または正の整数(PROP-5)
 - [ ] `RenderErrorResponse` 型: `{ request_id, error_type, status_code, stderr, exit_code, format, error_message, line, error_field, error_constraint }`
 - [ ] `format=png` でも `error_type=parse_error` の場合は JSON 応答(SVG ボディに `"Syntax error"` を含めない)
 
-### T-C 受入基準
+### Phase 2 受入基準
 
 - [ ] `vitest run test/unit/inputValidator*.test.ts test/unit/errorResponse.test.ts` で PROP-5, 9, 11, 14, 15 green
-- [ ] PROP-13 のうち HTTP 429 経路が green(503 は T-D / T-E 完了後に集約検証)
+- [ ] PROP-13 のうち HTTP 429 経路が green(503 は Phase 3 / Phase 4 完了後に集約検証)
 - [ ] 既存 `test/inputValidator.test.ts` の互換テストが無修正で green(REQ-U-02 後方互換)
 
-### T-C 対象ファイル
+### Phase 2 対象ファイル
 
 | 種別 | パス |
 |---|---|
@@ -286,12 +286,12 @@
 
 ---
 
-## 4. T-D 観測 / レート制御層
+## 4. Phase 3 観測 / レート制御層
 
 **Validates:** REQ-S-03(Pool 層部分), REQ-UN-04, NFR-04, NFR-05
 **PROP:** 13(Pool 層 503 部分), 17
-**依存:** T-A 完了
-**並行可能:** T-B, T-C と並行
+**依存:** Phase 0 完了
+**並行可能:** Phase 1, Phase 2 と並行
 
 ### D-1 observability 新規(P-07)
 
@@ -328,13 +328,13 @@
 - [ ] [TDD] 失敗テスト先行: HTTP 層が `RATE_LIMIT_MAX_INFLIGHT + 1` 番目のリクエストを即時 429、Pool 層は `POOL_QUEUE_MAX` 超で 503(PROP-13 完成)
 - [ ] [TDD] 失敗テスト先行: `Retry-After` ヘッダ値が秒単位の正の整数
 
-### T-D 受入基準
+### Phase 3 受入基準
 
 - [ ] `vitest run test/integration/observability.test.ts test/integration/rateLimit.test.ts` で PROP-13, 17 green
 - [ ] `/livez` は BrowserPool 初期化前後とも 200、`/readyz` は (a) 初期化前 503 / (b) 初期化後・健全 200 / (c) 直近 5 分エラー率 ≥ 50% で 503
 - [ ] `curl /metrics` 出力に 8 メトリクス系統が全て含まれる
 
-### T-D 対象ファイル
+### Phase 3 対象ファイル
 
 | 種別 | パス |
 |---|---|
@@ -346,11 +346,11 @@
 
 ---
 
-## 5. T-E サーバ統合 / 依存更新 / Docker
+## 5. Phase 4 サーバ統合 / 依存更新 / Docker
 
 **Validates:** REQ-U-02, REQ-U-07, REQ-U-08, REQ-S-01, NFR-02, NFR-03, NFR-06, C-M-07, C-M-10, C-P-03, C-S-04
 **PROP:** 1, 2, 4, 7, 10, 16
-**依存:** T-B, T-C, T-D 完了
+**依存:** Phase 1, Phase 2, Phase 3 完了
 
 ### E-1 `src/server/server.ts` 起動 + graceful shutdown(P-09)
 
@@ -387,7 +387,7 @@
 - [ ] 既存 chromium / fonts-noto-cjk / X11 ライブラリは維持(動作確認済)
 - [ ] `PUPPETEER_SKIP_DOWNLOAD=true` / `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium` は維持
 
-### T-E 受入基準
+### Phase 4 受入基準
 
 - [ ] `vitest run` で既存 integration test が全 green(後方互換)
 - [ ] PROP-1, 2, 4, 7, 10, 16 が green
@@ -395,7 +395,7 @@
 - [ ] `curl /healthz` は維持(既存クライアント互換)
 - [ ] `npm ci` で lock 同期、`@mermaid-js/mermaid-cli` の `package.json` 表記が exact pin(caret/tilde 無し)
 
-### T-E 対象ファイル
+### Phase 4 対象ファイル
 
 | 種別 | パス |
 |---|---|
@@ -408,11 +408,11 @@
 
 ---
 
-## 6. T-F テスト集約
+## 6. Phase 5 テスト集約
 
 **Validates:** PROP-1〜17 全
 **PROP:** 1〜17(集約と漏れ補完)
-**依存:** T-E 完了
+**依存:** Phase 4 完了
 
 ### F-1 property test 整理(P-12)
 
@@ -423,17 +423,17 @@
 
 ### F-2 integration test 拡張
 
-- [ ] `test/integration/browserPool.test.ts`(T-B で作成、PROP-6, 7)
-- [ ] `test/integration/serverLockedSettings.test.ts`(T-E で作成、PROP-2)
+- [ ] `test/integration/browserPool.test.ts`(Phase 1 で作成、PROP-6, 7)
+- [ ] `test/integration/serverLockedSettings.test.ts`(Phase 4 で作成、PROP-2)
 - [ ] `test/integration/render.test.ts` 既存に PROP-1, 4, 10 を追加
-- [ ] `test/integration/observability.test.ts`(T-D で作成、PROP-17)
+- [ ] `test/integration/observability.test.ts`(Phase 3 で作成、PROP-17)
 - [ ] `test/integration/renderModeCli.test.ts`: `RENDERER_MODE=cli` でサーバ起動して既存 render 互換確認(PROP-16)
 
 ### F-3 unit test 補完
 
-- [ ] `test/unit/safeDeepMerge.test.ts`(T-A、PROP-12)
-- [ ] `test/unit/buildRequestMermaidConfig.test.ts`(T-A、PROP-3, 8)
-- [ ] `test/unit/extractMermaidError.test.ts`(T-A、PROP-5)
+- [ ] `test/unit/safeDeepMerge.test.ts`(Phase 0、PROP-12)
+- [ ] `test/unit/buildRequestMermaidConfig.test.ts`(Phase 0、PROP-3, 8)
+- [ ] `test/unit/extractMermaidError.test.ts`(Phase 0、PROP-5)
 
 ### F-4 既存テストの互換確認
 
@@ -441,14 +441,14 @@
 - [ ] `test/integration/rateLimitTimeout.test.ts` を新 `RATE_LIMIT_MAX_INFLIGHT` 前提に更新(PROP-13)
 - [ ] テストヘルパー `test/helpers/server.ts` を新 BrowserPool 前提に更新(`startTestServer()` が pool 初期化を待つ)
 
-### T-F 受入基準
+### Phase 5 受入基準
 
 - [ ] `npm test` で全 green(unit + integration + property)
 - [ ] `grep -oE 'PROP-[0-9]+' test/ -r | sort -u | wc -l` が 17(全 PROP 検証コード存在)
-- [ ] AI 駆動テスト方針遵守: バイト一致比較 / 目視 visual diff を使うテストは存在しない(配布 HTML 最終確認の T-G ゲートのみ目視を許容)
+- [ ] AI 駆動テスト方針遵守: バイト一致比較 / 目視 visual diff を使うテストは存在しない(配布 HTML 最終確認の Phase 6 ゲートのみ目視を許容)
 - [ ] テスト実行時間が現状 +50% 以内(ベンチマーク的に許容範囲)
 
-### T-F 対象ファイル
+### Phase 5 対象ファイル
 
 | 種別 | パス |
 |---|---|
@@ -475,11 +475,11 @@
 
 ---
 
-## 7. T-G デプロイ + 性能計測(blue/green)
+## 7. Phase 6 デプロイ + 性能計測(blue/green)
 
 **Validates:** NFR-01, NFR-03
 **PROP:** —(性能達成判定)
-**依存:** T-F 完了
+**依存:** Phase 5 完了
 
 ### G-1 test profile 構築(P-13)
 
@@ -503,7 +503,7 @@
 - [ ] after: test(3101、Programmatic API)で `perf-check.ts --label=after`
 - [ ] **ゲート条件**: after の単純 flowchart 定常状態 p50 ≤ 500ms(NFR-01)
 - [ ] 達成: G-4 へ進む
-- [ ] 未達: T-B / T-D に戻して原因分析、再計測
+- [ ] 未達: Phase 1 / Phase 3 に戻して原因分析、再計測
 - [ ] 結果を `docs/perf/2026-MM-DD_perf-check.md` にコミット(印象論排除の根拠保存)
 
 ### G-4 切替 + ロールバック(P-15)
@@ -527,7 +527,7 @@
 - [ ] ロールバック手順を **1 度試走**(prod 影響なし、test サービスで試す)
 - [ ] 配布 HTML embed の最終目視確認 1 回(memory: AI 駆動テスト中心方針の唯一の例外、本ゲートでのみ実施)
 
-### T-G 受入基準
+### Phase 6 受入基準
 
 - [ ] G-3 ゲート通過(NFR-01 単純 flowchart p50 ≤ 500ms)
 - [ ] 切替後 5 分監視で異常なし
@@ -535,7 +535,7 @@
 - [ ] `docs/perf/` に before / after / compare の 3 ファイルがコミットされている
 - [ ] 配布 HTML embed 最終目視で clip / max-width 干渉 / 余白 3 課題が解消
 
-### T-G 対象ファイル
+### Phase 6 対象ファイル
 
 | 種別 | パス |
 |---|---|
@@ -566,4 +566,4 @@
 3. **PROP 網羅性**: `grep -oE 'PROP-[0-9]+' .kiro/specs/beautiful-svg-rendering/tasks.md | sort -u | wc -l` が 17
 4. **C-* 網羅性**: 主要 C-S-* / C-P-* / C-M-* が tasks.md 内に出現(セキュリティ・運用前提として実装担保される)
 5. **TDD タグ妥当性**: `[TDD]` 付き行が「複雑ロジック / セキュリティ / 並行制御」のみで、配線系には付いていないことを目視
-6. **依存閉路なし**: T-A → {T-B, T-C, T-D} → T-E → T-F → T-G の DAG
+6. **依存閉路なし**: Phase 0 → {Phase 1, Phase 2, Phase 3} → Phase 4 → Phase 5 → Phase 6 の DAG
