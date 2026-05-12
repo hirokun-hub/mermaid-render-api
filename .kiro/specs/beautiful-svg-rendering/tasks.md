@@ -80,6 +80,8 @@
 - [ ] [TDD] 失敗テスト先行: `__proto__` / `constructor` / `prototype` キーが結果オブジェクトに含まれない(PROP-12)
 - [ ] [TDD] 失敗テスト先行: `Object.prototype.polluted` がリクエスト後も未定義
 - [ ] [TDD] 失敗テスト先行: ネストされた `{ a: { __proto__: { x: 1 } } }` 形の payload も再帰的に弾く
+- [ ] [TDD] 失敗テスト先行: `Mermaid_Config_Override` 経由(例 `{ mermaid_config: { __proto__: { polluted: true } } }`)で警告 `prototype_pollution_attempt` 記録(REQ-UN-06 第 1 対象)
+- [ ] [TDD] 失敗テスト先行: `Post_Process_Option` 経由(例 `{ post_process: { __proto__: { polluted: true } } }` および `{ post_process: { constructor: { prototype: { x: 1 } } } }`)で同様に検出・警告(REQ-UN-06 第 2 対象)
 - [ ] `FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype'])` 定義
 - [ ] `Object.create(null)` でプロトタイプチェーン排除、`Object.entries()` で iterate(`for...in` 禁止)
 - [ ] 検出時は `WarningCollector.add('prototype_pollution_attempt', { key })` で記録し、当該キーをスキップして処理継続
@@ -180,10 +182,13 @@
 
 ### B-5 render タイムアウト処理(親要件「要件 4」継承、C-S-06)
 
-- [ ] [TDD] 失敗テスト先行: `timeout_ms` 経過時点で `error_type=timeout` / HTTP 504 を返す
-- [ ] [TDD] 失敗テスト先行: タイムアウト時に当該 BrowserContext を **破棄**(`context.close()`)、ハングした page をプールに戻さない(プール枯渇防止)
-- [ ] [TDD] 失敗テスト先行: タイムアウト時に semaphore を解放し、後続リクエストがブロックされない
-- [ ] [TDD] 失敗テスト先行: 連続タイムアウトでも `browser_pool_in_use` がリークせず元値に戻る
+> **テスト方針メモ**: adapter / pool 単体テストは validator バイパスのため `timeoutMs` に `MIN_TIMEOUT_MS` 未満(例 100ms)を直渡しできる。HTTP 統合テストは validator 経由のため `timeout_ms ≥ MIN_TIMEOUT_MS(1000)` を遵守し、render 側を遅延スタブで模擬する。
+
+- [ ] [TDD] 失敗テスト先行(adapter 単体、`timeoutMs=100` 直渡し): `timeout_ms` 経過時点で `error_type=timeout` を返す
+- [ ] [TDD] 失敗テスト先行(adapter 単体): タイムアウト時に当該 BrowserContext を **破棄**(`context.close()`)、ハングした page をプールに戻さない(プール枯渇防止)
+- [ ] [TDD] 失敗テスト先行(adapter 単体): タイムアウト時に semaphore を解放し、後続リクエストがブロックされない
+- [ ] [TDD] 失敗テスト先行(adapter 単体): 連続タイムアウトでも `browser_pool_in_use` がリークせず元値に戻る
+- [ ] [TDD] 失敗テスト先行(HTTP 統合、`timeout_ms=1000` + 遅延スタブ): HTTP 504 が返る
 - [ ] 実装: `Promise.race([renderMermaid(...), timeoutPromise(timeout_ms)])` で競争、勝者判定後に敗者側の context を `discard()` ルートへ
 - [ ] `render_timeout_total` メトリクスをインクリメント(D-1 と連動)
 
@@ -206,7 +211,9 @@
 - [ ] `RENDERER_MODE=cli npm start` で起動 → PROP-16 green(レイテンシ劣化は許容)
 - [ ] `MAX_RENDERS_PER_CONTEXT = 3` に下げた状態で 10 リクエストを送信、recycle が 3 回起きることをログで確認
 - [ ] graceful shutdown: SIGTERM 送信 → 進行中リクエスト完了 → プロセス終了(15 秒以内)
-- [ ] timeout テスト: `timeout_ms=100` で重い render → 504、`browser_pool_in_use` がリーク無く元値に戻る
+- [ ] timeout テスト:
+  - [ ] **adapter 単体テスト**(validator バイパス、`timeoutMs=100` を直渡し)で `ProgrammaticAdapter.render` が `error_type=timeout` を返し、context 破棄 + semaphore 解放を確認
+  - [ ] **HTTP 統合テスト**(validator 経由、`MIN_TIMEOUT_MS=1000` 制約遵守)では `timeout_ms=1000` + 内部で人為的に重い render(`page.waitForTimeout(5000)` 等のスタブ)→ HTTP 504、`browser_pool_in_use` がリーク無く元値に戻る
 - [ ] postProcess unit test: `strip_max_width` の 6 ケース(true/false × 単独/複合/大小混在/子要素影響なし)green
 
 ### T-B 対象ファイル
@@ -290,7 +297,7 @@
 
 - [ ] `src/server/observability.ts` 新規:
   - [ ] pino logger インスタンス、構造化 JSON ログ
-  - [ ] 1 リクエスト 1 ログ行、フィールド: `request_id`, `format`, `code_bytes`, `queue_ms`, `render_ms`, `post_process_ms`, `total_ms`, `pool_in_use`, `pool_waiting`, `result`(`success | parse_error | timeout | service_unavailable | invalid_request | render_error`), `warnings: WarningCode[]`
+  - [ ] 1 リクエスト 1 ログ行、フィールド: `request_id`, `format`, `code_bytes`, `queue_ms`, `render_ms`, `post_process_ms`, `total_ms`, `pool_in_use`, `pool_waiting`, `result`(`ok | parse_error | render_error | timeout | rate_limited | invalid_request | service_unavailable` — design.md §4.1 と一致、429 も 1 リクエスト 1 ログ行として出力)、`warnings: WarningCode[]`
   - [ ] **Mermaid コード本体はログに残さない**(REQ-UN-04: 永続保存禁止)。`code_bytes` のサイズのみ記録、`code` 文字列は出力しない
   - [ ] prom-client メトリクス 8 系統:
     - `render_total{result, format}` Counter
@@ -456,7 +463,7 @@
 | 新規 | `test/property/prop-09_theme_css_length.property.test.ts` |
 | 新規 | `test/property/prop-10_no_syntax_error_in_svg.property.test.ts` |
 | 新規 | `test/property/prop-11_theme_css_forbidden_pattern.property.test.ts` |
-| 新規 | `test/property/prop-12_prototype_pollution.property.test.ts` |
+| 新規 | `test/property/prop-12_prototype_pollution.property.test.ts`(`mermaid_config` 経由と `post_process` 経由の両方の payload を fast-check で網羅) |
 | 新規 | `test/property/prop-13_rate_limit_429_pool_503.property.test.ts` |
 | 新規 | `test/property/prop-14_timeout_out_of_range.property.test.ts` |
 | 新規 | `test/property/prop-15_unknown_key_and_locked.property.test.ts` |
