@@ -53,10 +53,18 @@ export const RATE_LIMIT_MAX_INFLIGHT = toPositiveInt(
   process.env.RATE_LIMIT_MAX_INFLIGHT,
   toPositiveInt(process.env.MAX_CONCURRENT_RENDERERS, 15)
 )
+export const RATE_LIMIT_RETRY_AFTER_MS = toPositiveInt(
+  process.env.RATE_LIMIT_RETRY_AFTER_MS,
+  3000
+)
 export const POOL_QUEUE_MAX = toPositiveInt(process.env.POOL_QUEUE_MAX, 20)
 export const POOL_WAIT_TIMEOUT_MS = toPositiveInt(
   process.env.POOL_WAIT_TIMEOUT_MS,
   3000
+)
+export const POOL_RETRY_AFTER_MS = toPositiveInt(
+  process.env.POOL_RETRY_AFTER_MS,
+  5000
 )
 export const MIN_TIMEOUT_MS = 1000
 export const MAX_TIMEOUT_MS = toPositiveInt(process.env.MAX_TIMEOUT_MS, 30000)

@@ -4,7 +4,6 @@ import {
   BODY_LIMIT_BYTES,
   buildRequestMermaidConfig,
   CONTENT_TYPE_MAP,
-  DEFAULT_TIMEOUT_MS,
   RATE_LIMIT_MAX_INFLIGHT
 } from '../config.js'
 import { generateRequestId } from '../utils/requestId.js'
@@ -12,8 +11,15 @@ import { logRequest, logResponse, logError } from '../utils/logger.js'
 import { validateRenderRequest } from '../validation/inputValidator.js'
 import { RateLimiter } from '../limiter/rateLimiter.js'
 import { createRenderer } from '../renderer/createRenderer.js'
-import type { RendererCloseOptions } from '../renderer/mermaidRendererAdapter.js'
+import type {
+  RenderErrorType,
+  RendererCloseOptions
+} from '../renderer/mermaidRendererAdapter.js'
 import { WarningCollector } from '../utils/warnings.js'
+import {
+  buildErrorResponse,
+  retryAfterFor
+} from './errorResponse.js'
 
 const app = express()
 const renderer = createRenderer()
@@ -31,22 +37,21 @@ app.post('/render', async (req: Request, res: Response) => {
 
   logRequest(requestId, req.method, req.path)
 
-  const requestedTimeout =
-    typeof req.body.timeout_ms === 'number' && req.body.timeout_ms > 0
-      ? req.body.timeout_ms
-      : DEFAULT_TIMEOUT_MS
   const warnings = new WarningCollector()
 
   const validation = validateRenderRequest({
     code: req.body.code,
-    format: req.body.format
+    format: req.body.format,
+    timeout_ms: req.body.timeout_ms,
+    mermaid_config: req.body.mermaid_config,
+    post_process: req.body.post_process
   })
 
   const requestedFormat = validation.requestedFormat
   const normalizedFormat = validation.normalizedFormat
 
   const sendError = (
-    type: string,
+    type: RenderErrorType,
     status: number,
     stderr: string,
     code: number | null,
@@ -54,19 +59,30 @@ app.post('/render', async (req: Request, res: Response) => {
   ) => {
     statusCode = status
     outcome = 'failure'
-    res
+    const response = buildErrorResponse({
+      requestId,
+      errorType: type,
+      statusCode: status,
+      stderr,
+      exitCode: code,
+      format: requestedFormat,
+      errorMessage: (extras.error_message as string | null | undefined) ?? null,
+      line: (extras.line as number | null | undefined) ?? null,
+      errorField: (extras.error_field as string | null | undefined) ?? null,
+      errorConstraint:
+        (extras.error_constraint as string | null | undefined) ?? null
+    })
+    const responseBuilder = res
       .status(status)
       .set('Content-Type', 'application/json')
       .set('X-Request-Id', requestId)
-      .json({
-        request_id: requestId,
-        error_type: type,
-        status_code: status,
-        stderr,
-        exit_code: code,
-        format: requestedFormat,
-        ...extras
-      })
+
+    const retryAfter = retryAfterFor(type)
+    if (retryAfter) {
+      responseBuilder.set('Retry-After', retryAfter)
+    }
+
+    responseBuilder.json(response)
   }
 
   if (!validation.valid) {
@@ -75,9 +91,15 @@ app.post('/render', async (req: Request, res: Response) => {
       message: 'invalid_request',
       status_code: 400,
       stderr: '',
-      exit_code: null
+      exit_code: null,
+      error_field: null,
+      error_constraint: null
     }
-    sendError('invalid_request', 400, error.stderr, null)
+    sendError('invalid_request', 400, error.stderr, null, {
+      error_message: error.message,
+      error_field: error.error_field,
+      error_constraint: error.error_constraint
+    })
     logError(
       requestId,
       new Error(error.message),
@@ -87,6 +109,10 @@ app.post('/render', async (req: Request, res: Response) => {
     const duration = Date.now() - start
     logResponse(requestId, statusCode, duration, outcome, exitCode)
     return
+  }
+
+  for (const warning of validation.warnings) {
+    warnings.add(warning.code, warning.detail)
   }
 
   const allowed = await rateLimiter.acquire()
@@ -100,18 +126,16 @@ app.post('/render', async (req: Request, res: Response) => {
 
   try {
     const mermaidConfig = buildRequestMermaidConfig(
-      isRecord(req.body.mermaid_config) ? req.body.mermaid_config : undefined,
+      validation.mermaidConfig,
       warnings
     )
     const renderResult = await renderer.render({
       requestId,
       code: req.body.code,
       format: normalizedFormat,
-      timeoutMs: requestedTimeout,
+      timeoutMs: validation.timeoutMs,
       mermaidConfig,
-      postProcess: isRecord(req.body.post_process)
-        ? req.body.post_process
-        : undefined
+      postProcess: validation.postProcess
     })
 
     if (!renderResult.success) {
@@ -191,7 +215,3 @@ async function readyRenderer(): Promise<void> {
 }
 
 export { app, closeRenderer, readyRenderer }
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}

@@ -5,13 +5,15 @@ export interface PostProcessOption {
   strip_max_width?: boolean
 }
 
+export type NormalizedPostProcess = Required<PostProcessOption>
+
 export interface RenderInput {
   requestId: string
   code: string
   format: SupportedFormat
   timeoutMs: number
   mermaidConfig: MermaidConfig
-  postProcess?: PostProcessOption
+  postProcess?: NormalizedPostProcess
   svgId?: string
 }
 

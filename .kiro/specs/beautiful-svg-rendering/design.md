@@ -142,8 +142,10 @@ sequenceDiagram
 | `SERVER_LOCKED_SETTINGS` | `Readonly<MermaidConfig>` | Server_Locked_Setting の単一情報源 |
 | `BROWSER_POOL_SIZE` | `number`(env: `BROWSER_POOL_SIZE`、default `4`、BrowserContext 単位) | Browser_Pool のサイズ(同時 render 可能な BrowserContext 数) |
 | `RATE_LIMIT_MAX_INFLIGHT` | `number`(env、default `15`) | HTTP 層の同時受付上限。超過は **即時 429** + `Retry-After`(REQ-S-03) |
+| `RATE_LIMIT_RETRY_AFTER_MS` | `number`(env、default `3000`) | HTTP 層の即時 429 応答で返す `Retry-After` の基準値 |
 | `POOL_QUEUE_MAX` | `number`(env、default `20`) | Pool acquire の wait queue 上限。超過は **503** + `Retry-After`(REQ-S-03) |
 | `POOL_WAIT_TIMEOUT_MS` | `number`(env、default `3000`) | Pool acquire の wait timeout。超過は **503** + `Retry-After`(REQ-S-03) |
+| `POOL_RETRY_AFTER_MS` | `number`(env、default `5000`) | Browser_Pool 未初期化 / 全停止など、pool 起動・復旧待ち 503 応答で返す `Retry-After` の基準値 |
 | `MIN_TIMEOUT_MS` | `number` const = `1000` | リクエスト `timeout_ms` 下限(C-S-06) |
 | `MAX_TIMEOUT_MS` | `number`(env、default `30000`) | リクエスト `timeout_ms` 上限(C-S-06) |
 | `MAX_RENDERS_PER_CONTEXT` | `number`(env、default `100`) | BrowserContext 単位の recycle 閾値(C-P-02 が page リーク対策として要求するもの。本改修では context を単位として recycle する) |
@@ -350,9 +352,11 @@ interface RenderRequestInput {
 - `mermaid_config` は **allowlist 方式**(REQ-E-06):
   - **許可キー(API 層を通過)**: `theme` / `themeVariables` / `themeCSS` / `htmlLabels` / `flowchart` / `sequence` / `gantt` / `er` / `class` / `state` / `mindmap`
   - **明示 reject(警告 `locked_setting_override_ignored`)**: `securityLevel` / `maxTextSize` / `maxEdges` / `secure` / `startOnLoad`(`SERVER_LOCKED_SETTINGS` 全キー)
-  - **無視 + 警告 `unknown_key`**: 上記いずれにも該当しない未知キー
-  - allowlist 配下のネストでも同様に `SERVER_LOCKED_SETTINGS` キーを再帰的に除去
+  - **無視 + 警告 `unknown_key`**: 最上位で上記いずれにも該当しない未知キー
+  - allowlist 配下のネストでは、既知キーのみ型検査し、未知 sub-key は Mermaid 公式 schema 追従のため通過させる
+  - allowlist 配下のネストでも同様に `SERVER_LOCKED_SETTINGS` キーと prototype pollution 対象キーを再帰的に除去
 - `post_process` は `object` 型のみ受理。allowlist は `rewrite_ids` / `strip_max_width` のみ、未知キーは無視 + 警告 `unknown_key`
+- validator 通過後の内部 DTO は `NormalizedPostProcess` とし、`post_process` 未指定時も default 値を埋めた `{ rewrite_ids: true, strip_max_width: false }` を保持する
 - `post_process.rewrite_ids: boolean` を許可(default は true)
 - `post_process.strip_max_width: boolean` を許可(default は false。`useMaxWidth: false` 既定で大半は不要)
 - `format=png` と SVG 専用 `post_process.*` の同時指定は無視 + 警告 `svg_only_option_in_png`(REQ-E-05)
@@ -579,9 +583,9 @@ interface RenderContext {
 | Mermaid パースエラー | 例外メッセージ正規表現 `^Parse error on line` / `^Lexical error on line` | `parse_error` | 400 |
 | Mermaid レンダリング失敗(その他) | 例外発生・空 SVG 等 | `render_error` | 500 |
 | タイムアウト | `setTimeout` で `renderMermaid()` を競争 → 勝敗 | `timeout` | 504 |
-| HTTP 層 同時受付上限超過(即時拒否、REQ-S-03) | RateLimiter が `RATE_LIMIT_MAX_INFLIGHT` 超で拒否 | `rate_limited` | 429 + `Retry-After` |
-| Pool 層 wait queue 満杯 / wait timeout 超過(REQ-S-03) | BrowserPool が `POOL_QUEUE_MAX` / `POOL_WAIT_TIMEOUT_MS` 超で拒否 | `service_unavailable` | 503 + `Retry-After` |
-| Browser_Pool 未初期化 / 全停止 | Pool 状態フラグ | `service_unavailable` | 503 + `Retry-After`(起動中は短めの推奨値、例: `Retry-After: 5`) |
+| HTTP 層 同時受付上限超過(即時拒否、REQ-S-03) | RateLimiter が `RATE_LIMIT_MAX_INFLIGHT` 超で拒否 | `rate_limited` | 429 + `Retry-After`(`RATE_LIMIT_RETRY_AFTER_MS`) |
+| Pool 層 wait queue 満杯 / wait timeout 超過(REQ-S-03) | BrowserPool が `POOL_QUEUE_MAX` / `POOL_WAIT_TIMEOUT_MS` 超で拒否 | `service_unavailable` | 503 + `Retry-After`(`POOL_WAIT_TIMEOUT_MS`) |
+| Browser_Pool 未初期化 / 全停止 | Pool 状態フラグ | `service_unavailable` | 503 + `Retry-After`(`POOL_RETRY_AFTER_MS`、default 5 秒) |
 
 **全エラー種別共通**: `error_message`(人間/LLM 可読)を必ず含める(REQ-U-05、`invalid_request` も含む)。バリデーション系は `error_field` / `error_constraint`(機械可読)を併せて返す。
 

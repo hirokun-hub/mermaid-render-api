@@ -4,7 +4,7 @@ import { httpRequest } from '../helpers/http.js'
 import { startTestServer } from '../helpers/server.js'
 import { MermaidRenderer } from '../../src/renderer/mermaidRenderer.js'
 import { sleep } from '../helpers/sleep.js'
-import { RATE_LIMIT_MAX_INFLIGHT } from '../../src/config.js'
+import { MIN_TIMEOUT_MS, RATE_LIMIT_MAX_INFLIGHT } from '../../src/config.js'
 
 const validCode = 'graph TD\nA-->B'
 
@@ -21,7 +21,8 @@ describe('Property 7: Timeout responses', () => {
     const server = await startTestServer()
     try {
       await fc.assert(
-        fc.asyncProperty(fc.integer({ min: 1, max: 5 }), async (timeoutMs) => {
+        fc.asyncProperty(fc.integer({ min: 0, max: 5 }), async (timeoutOffset) => {
+          const timeoutMs = MIN_TIMEOUT_MS + timeoutOffset
           const response = await httpRequest(`${server.baseUrl}/render`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

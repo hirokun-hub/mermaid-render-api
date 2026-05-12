@@ -246,47 +246,52 @@
 
 ### C-1 `inputValidator` 拡張(P-05)
 
-- [ ] [TDD] 失敗テスト先行: `mermaid_config` フィールド受理(plain object 以外は HTTP 400 / `error_type=invalid_request`)
-- [ ] [TDD] 失敗テスト先行: `post_process` フィールド受理(`{ rewrite_ids?: boolean, strip_max_width?: boolean }`、それ以外は警告 `unknown_key`)
-- [ ] [TDD] 失敗テスト先行(REQ-E-07): `post_process.rewrite_ids = "true"`(boolean 必須箇所に文字列) → HTTP 400 / `error_type=invalid_request` / `error_field="post_process.rewrite_ids"` / `error_constraint="type_mismatch"`
-- [ ] [TDD] 失敗テスト先行(REQ-E-07): `post_process.strip_max_width = 1`(boolean 必須箇所に数値) → HTTP 400 同様
-- [ ] [TDD] 失敗テスト先行(REQ-E-07): `mermaid_config.flowchart.diagramPadding = "16"`(number 必須箇所に文字列) → HTTP 400 同様
-- [ ] [TDD] 失敗テスト先行(REQ-E-07): `mermaid_config.htmlLabels = "true"`(boolean 必須箇所に文字列) → HTTP 400 同様
-- [ ] 型不正と未知キーの区別を明確化: allowlist 内既知キーの型不正は HTTP 400、allowlist 外の未知キーは警告 `unknown_key` のみ
-- [ ] [TDD] 失敗テスト先行: allowlist 方式 — 許可キー以外は削除 + 警告 `unknown_key`(PROP-15 前半)
-- [ ] [TDD] 失敗テスト先行: SERVER_LOCKED_SETTINGS のキー(`securityLevel` 等)を `mermaid_config` 内で指定 → 警告 `locked_setting_override_ignored`(PROP-15 後半)
-- [ ] [TDD] 失敗テスト先行: `timeout_ms` が `[MIN_TIMEOUT_MS, MAX_TIMEOUT_MS]` 範囲外 → HTTP 400 / `error_field="timeout_ms"` / `error_constraint="out_of_range"`(PROP-14, C-S-06)
-- [ ] [TDD] 失敗テスト先行: `themeCSS` が `MAX_THEME_CSS_LENGTH` 超 → HTTP 400(PROP-9)
-- [ ] [TDD] 失敗テスト先行: `themeCSS` に `THEME_CSS_FORBIDDEN_PATTERNS` のいずれかを含む → HTTP 400 + 警告 `theme_css_rejected`(PROP-11)
-- [ ] `WarningCollector` をリクエストごとに生成し、検証結果に同梱
-- [ ] `ValidateResultError` 型を踏襲(既存パターン継承)
+- [x] [TDD] 失敗テスト先行: `mermaid_config` フィールド受理(plain object 以外は HTTP 400 / `error_type=invalid_request`)
+- [x] [TDD] 失敗テスト先行: `post_process` フィールド受理(`{ rewrite_ids?: boolean, strip_max_width?: boolean }`、それ以外は警告 `unknown_key`)
+- [x] [TDD] 失敗テスト先行(REQ-E-07): `post_process.rewrite_ids = "true"`(boolean 必須箇所に文字列) → HTTP 400 / `error_type=invalid_request` / `error_field="post_process.rewrite_ids"` / `error_constraint="type_mismatch"`
+- [x] [TDD] 失敗テスト先行(REQ-E-07): `post_process.strip_max_width = 1`(boolean 必須箇所に数値) → HTTP 400 同様
+- [x] [TDD] 失敗テスト先行(REQ-E-07): `mermaid_config.flowchart.diagramPadding = "16"`(number 必須箇所に文字列) → HTTP 400 同様
+- [x] [TDD] 失敗テスト先行(REQ-E-07): `mermaid_config.htmlLabels = "true"`(boolean 必須箇所に文字列) → HTTP 400 同様
+- [x] 型不正と未知キーの区別を明確化: allowlist 内既知キーの型不正は HTTP 400、allowlist 外の未知キーは警告 `unknown_key` のみ
+- [x] [TDD] 失敗テスト先行: allowlist 方式 — 許可キー以外は削除 + 警告 `unknown_key`(PROP-15 前半)
+- [x] [TDD] 失敗テスト先行: SERVER_LOCKED_SETTINGS のキー(`securityLevel` 等)を `mermaid_config` 内で指定 → 警告 `locked_setting_override_ignored`(PROP-15 後半)
+- [x] [TDD] 失敗テスト先行: `timeout_ms` が `[MIN_TIMEOUT_MS, MAX_TIMEOUT_MS]` 範囲外 → HTTP 400 / `error_field="timeout_ms"` / `error_constraint="out_of_range"`(PROP-14, C-S-06)
+- [x] [TDD] 失敗テスト先行: `themeCSS` が `MAX_THEME_CSS_LENGTH` 超 → HTTP 400(PROP-9)
+- [x] [TDD] 失敗テスト先行: `themeCSS` に `THEME_CSS_FORBIDDEN_PATTERNS` のいずれかを含む → HTTP 400 + 警告 `theme_css_rejected`(PROP-11)
+- [x] `WarningCollector` をリクエストごとに生成し、検証結果に同梱
+- [x] `ValidateResultError` 型を踏襲(既存パターン継承)
 
 ### C-2 errorResponse 統一化(P-06)
 
-- [ ] `src/server/errorResponse.ts` 新規:
-  - [ ] [TDD] 失敗テスト先行: 4 フィールド統一組立 `{ error_message, line, error_field, error_constraint }`(parse_error / invalid_request / render_error / timeout / service_unavailable それぞれで)
-  - [ ] [TDD] 失敗テスト先行: HTTP 429 応答時に `Retry-After` ヘッダ付与(PROP-13 前半)
-  - [ ] [TDD] 失敗テスト先行: HTTP 503 応答時に `Retry-After` ヘッダ付与(PROP-13 後半は Phase 3 + Phase 4 で完成)
-  - [ ] [TDD] 失敗テスト先行: parse_error 時 `line` が `null` または正の整数(PROP-5)
-- [ ] `RenderErrorResponse` 型: `{ request_id, error_type, status_code, stderr, exit_code, format, error_message, line, error_field, error_constraint }`
-- [ ] `format=png` でも `error_type=parse_error` の場合は JSON 応答(SVG ボディに `"Syntax error"` を含めない)
+- [x] `src/server/errorResponse.ts` 新規:
+  - [x] [TDD] 失敗テスト先行: 4 フィールド統一組立 `{ error_message, line, error_field, error_constraint }`(parse_error / invalid_request / render_error / timeout / service_unavailable それぞれで)
+  - [x] [TDD] 失敗テスト先行: HTTP 429 応答時に `Retry-After` ヘッダ付与(PROP-13 前半)
+  - [x] [TDD] 失敗テスト先行: HTTP 503 応答時に `Retry-After` ヘッダ付与(PROP-13 後半は Phase 3 + Phase 4 で完成)
+  - [x] [TDD] 失敗テスト先行: parse_error 時 `line` が `null` または正の整数(PROP-5)
+- [x] `RenderErrorResponse` 型: `{ request_id, error_type, status_code, stderr, exit_code, format, error_message, line, error_field, error_constraint }`
+- [x] `format=png` でも `error_type=parse_error` の場合は JSON 応答(SVG ボディに `"Syntax error"` を含めない)
 
 ### Phase 2 受入基準
 
-- [ ] `vitest run test/unit/inputValidator*.test.ts test/unit/errorResponse.test.ts` で PROP-5, 9, 11, 14, 15 green
-- [ ] PROP-13 のうち HTTP 429 経路が green(503 は Phase 3 / Phase 4 完了後に集約検証)
-- [ ] 既存 `test/inputValidator.test.ts` の互換テストが無修正で green(REQ-U-02 後方互換)
+- [x] `vitest run test/unit/inputValidator*.test.ts test/unit/errorResponse.test.ts` で PROP-5, 9, 11, 14, 15 green
+- [x] PROP-13 のうち HTTP 429 経路が green(503 は Phase 3 / Phase 4 完了後に集約検証)
+- [x] 既存 `test/inputValidator.test.ts` の互換テストが無修正で green(REQ-U-02 後方互換)
 
 ### Phase 2 対象ファイル
 
 | 種別 | パス |
 |---|---|
+| 拡張 | `src/config.ts` |
+| 拡張 | `src/renderer/mermaidRendererAdapter.ts` |
+| 拡張 | `src/server/app.ts` |
 | 拡張 | `src/validation/inputValidator.ts` |
 | 新規 | `src/server/errorResponse.ts` |
 | 新規 | `test/unit/inputValidator.mermaidConfig.test.ts` |
 | 新規 | `test/unit/inputValidator.postProcess.test.ts` |
 | 新規 | `test/unit/inputValidator.themeCSS.test.ts` |
 | 新規 | `test/unit/errorResponse.test.ts` |
+| 拡張 | `test/integration/rateLimitTimeout.test.ts` |
+| 拡張 | `test/property/timeoutRateLimit.property.test.ts` |
 
 ---
 

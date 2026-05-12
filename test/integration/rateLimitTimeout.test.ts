@@ -43,6 +43,7 @@ describe('rate limit and timeout handling', () => {
         error_type?: string
       }
       expect(payloadJson.error_type).toBe('rate_limited')
+      expect(limited?.headers['retry-after']).toMatch(/^[1-9]\d*$/)
     } finally {
       await server.close()
     }
@@ -63,7 +64,7 @@ describe('rate limit and timeout handling', () => {
       const response = await httpRequest(`${server.baseUrl}/render`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: validCode, format: 'svg', timeout_ms: 1 })
+        body: JSON.stringify({ code: validCode, format: 'svg', timeout_ms: 1000 })
       })
 
       expect(response.status).toBe(504)
