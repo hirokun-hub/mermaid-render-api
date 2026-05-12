@@ -62,7 +62,7 @@
 
 ### A-1 `src/config.ts` 定数集約(P-01)
 
-- [ ] `BEAUTIFUL_DEFAULTS`(`useMaxWidth: false`、`htmlLabels: true`(REQ-UN-02 / C-M-03)、`themeCSS` 既定、`flowchart.diagramPadding` 等、`layout: "dagre-wrapper"`(REQ-UN-03 / C-M-04))を定義
+- [ ] `BEAUTIFUL_DEFAULTS`(`useMaxWidth: false`、`htmlLabels: true`(REQ-UN-02 / C-M-03)、`themeCSS` 既定、`suppressErrorRendering: true`、`flowchart.diagramPadding: 0`、`flowchart.nodeSpacing`、`flowchart.rankSpacing`、`flowchart.curve`、`flowchart.wrappingWidth`、`flowchart.defaultRenderer: "dagre-wrapper"`(REQ-UN-03 / C-M-04))を定義
 - [ ] `SERVER_LOCKED_SETTINGS`(`securityLevel: "strict"`(REQ-U-06), `maxTextSize: 50000`, `maxEdges: 500`, `startOnLoad: false`, `secure: <v11 既定>`)を定義
 - [ ] `CONTENT_TYPE_MAP` を `src/server/app.ts` ローカル定義から本ファイルへ移動(DRY 改善)
 - [ ] `DEFAULT_FORMAT = 'svg'` を `inputValidator.ts` ハードコードから本ファイルへ移動(DRY 改善)
@@ -137,7 +137,7 @@
 
 ## 2. T-B レンダリング層
 
-**Validates:** REQ-U-08, REQ-S-01, REQ-S-02, NFR-06, C-M-08, C-M-10, C-P-01, C-P-02, C-P-04, C-S-05
+**Validates:** REQ-U-04, REQ-U-08, REQ-S-01, REQ-S-02, NFR-06, 親要件「要件 4(タイムアウト)」継承, C-M-08, C-M-10, C-P-01, C-P-02, C-P-04, C-S-05, C-S-06
 **PROP:** 6, 7, 16
 **依存:** T-A 完了
 **並行可能:** T-C, T-D と並行
@@ -178,12 +178,36 @@
   - [ ] `RENDERER_MODE=cli` で起動時に選択される経路として確立(NFR-06)
   - [ ] [TDD] failing: `RENDERER_MODE=cli` で起動 → 単純 flowchart レンダリング成功、機能等価(PROP-16)
 
+### B-5 render タイムアウト処理(親要件「要件 4」継承、C-S-06)
+
+- [ ] [TDD] 失敗テスト先行: `timeout_ms` 経過時点で `error_type=timeout` / HTTP 504 を返す
+- [ ] [TDD] 失敗テスト先行: タイムアウト時に当該 BrowserContext を **破棄**(`context.close()`)、ハングした page をプールに戻さない(プール枯渇防止)
+- [ ] [TDD] 失敗テスト先行: タイムアウト時に semaphore を解放し、後続リクエストがブロックされない
+- [ ] [TDD] 失敗テスト先行: 連続タイムアウトでも `browser_pool_in_use` がリークせず元値に戻る
+- [ ] 実装: `Promise.race([renderMermaid(...), timeoutPromise(timeout_ms)])` で競争、勝者判定後に敗者側の context を `discard()` ルートへ
+- [ ] `render_timeout_total` メトリクスをインクリメント(D-1 と連動)
+
+### B-6 Post Process: `src/renderer/postProcess.ts` 新規
+
+- [ ] `rewrite_ids: true`(default)時、SVG ルート要素 `id` 属性を `mermaid-<requestId>` に一意化(SVG 生成時に `renderMermaid` の `svgId` 引数経由、SVG 文字列加工しない)
+- [ ] `rewrite_ids: false` 時は `svgId` を渡さず Mermaid 既定値で出力
+- [ ] [TDD] 失敗テスト先行: `strip_max_width: true` + format=svg 時、ルート `<svg>` の `style="max-width:300px; color:black;"` から `max-width` 宣言のみ case-insensitive で除去、他宣言保持
+- [ ] [TDD] 失敗テスト先行: `style` が `max-width` 単独 → `style` 属性ごと削除
+- [ ] [TDD] 失敗テスト先行: `<svg style="MAX-WIDTH:300PX">` のような大小文字混在も除去
+- [ ] [TDD] 失敗テスト先行: 子要素の `<g style="max-width:...">` には**触れない**(ルートのみ)
+- [ ] [TDD] 失敗テスト先行: `strip_max_width: false`(default)時は SVG 文字列に変更なし(no-op)
+- [ ] [TDD] 失敗テスト先行: `useMaxWidth: false`(BEAUTIFUL_DEFAULTS)+ `strip_max_width: true` 時、Mermaid が `max-width` を出力しないため最終的に no-op
+- [ ] `post_process_ms` を計測して構造化ログに出力(NFR-05)
+- [ ] `format=png` 時は SVG 加工をスキップ(警告は C-1 / E-2 側で発生済)
+
 ### T-B 受入基準
 
 - [ ] `vitest run test/integration/browserPool.test.ts` で PROP-6, 7 green
 - [ ] `RENDERER_MODE=cli npm start` で起動 → PROP-16 green(レイテンシ劣化は許容)
 - [ ] `MAX_RENDERS_PER_CONTEXT = 3` に下げた状態で 10 リクエストを送信、recycle が 3 回起きることをログで確認
 - [ ] graceful shutdown: SIGTERM 送信 → 進行中リクエスト完了 → プロセス終了(15 秒以内)
+- [ ] timeout テスト: `timeout_ms=100` で重い render → 504、`browser_pool_in_use` がリーク無く元値に戻る
+- [ ] postProcess unit test: `strip_max_width` の 6 ケース(true/false × 単独/複合/大小混在/子要素影響なし)green
 
 ### T-B 対象ファイル
 
@@ -192,10 +216,13 @@
 | 新規 | `src/renderer/browserPool.ts` |
 | 新規 | `src/renderer/programmaticAdapter.ts` |
 | 新規 | `src/renderer/cliFallbackAdapter.ts` |
+| 新規 | `src/renderer/postProcess.ts` |
 | 大幅刷新 | `src/renderer/mermaidRenderer.ts`(adapter 委譲のみに縮減、または削除) |
 | 新規 | `test/integration/browserPool.test.ts` |
 | 新規 | `test/integration/programmaticAdapter.test.ts` |
+| 新規 | `test/integration/renderTimeout.test.ts` |
 | 新規 | `test/unit/bufferNormalization.test.ts` |
+| 新規 | `test/unit/postProcess.test.ts` |
 
 ---
 
@@ -210,6 +237,11 @@
 
 - [ ] [TDD] 失敗テスト先行: `mermaid_config` フィールド受理(plain object 以外は HTTP 400 / `error_type=invalid_request`)
 - [ ] [TDD] 失敗テスト先行: `post_process` フィールド受理(`{ rewrite_ids?: boolean, strip_max_width?: boolean }`、それ以外は警告 `unknown_key`)
+- [ ] [TDD] 失敗テスト先行(REQ-E-07): `post_process.rewrite_ids = "true"`(boolean 必須箇所に文字列) → HTTP 400 / `error_type=invalid_request` / `error_field="post_process.rewrite_ids"` / `error_constraint="type_mismatch"`
+- [ ] [TDD] 失敗テスト先行(REQ-E-07): `post_process.strip_max_width = 1`(boolean 必須箇所に数値) → HTTP 400 同様
+- [ ] [TDD] 失敗テスト先行(REQ-E-07): `mermaid_config.flowchart.diagramPadding = "16"`(number 必須箇所に文字列) → HTTP 400 同様
+- [ ] [TDD] 失敗テスト先行(REQ-E-07): `mermaid_config.htmlLabels = "true"`(boolean 必須箇所に文字列) → HTTP 400 同様
+- [ ] 型不正と未知キーの区別を明確化: allowlist 内既知キーの型不正は HTTP 400、allowlist 外の未知キーは警告 `unknown_key` のみ
 - [ ] [TDD] 失敗テスト先行: allowlist 方式 — 許可キー以外は削除 + 警告 `unknown_key`(PROP-15 前半)
 - [ ] [TDD] 失敗テスト先行: SERVER_LOCKED_SETTINGS のキー(`securityLevel` 等)を `mermaid_config` 内で指定 → 警告 `locked_setting_override_ignored`(PROP-15 後半)
 - [ ] [TDD] 失敗テスト先行: `timeout_ms` が `[MIN_TIMEOUT_MS, MAX_TIMEOUT_MS]` 範囲外 → HTTP 400 / `error_field="timeout_ms"` / `error_constraint="out_of_range"`(PROP-14, C-S-06)
@@ -271,7 +303,13 @@
     - `validation_error_total{field}` Counter
 - [ ] `GET /metrics`: Prometheus text format
 - [ ] `GET /livez`: 常時 200(プロセス生存判定)
-- [ ] `GET /readyz`: BrowserPool 初期化完了で 200、それ以前は 503
+- [ ] `GET /readyz`: 以下 2 条件すべて成立で 200、それ以外 503(requirements.md §5.2):
+  - (a) BrowserPool が 1 BrowserContext 以上 acquire 可能(初期化完了 + 全停止していない)
+  - (b) 直近 5 分のリクエストエラー率 < 50%(`render_total{result="success"}` / `render_total` で算出、サンプル数閾値: ≥ 10 リクエスト未満なら (a) のみで判定)
+- [ ] エラー率算出のための 5 分スライディングウィンドウ集計を observability 層に追加
+- [ ] [TDD] 失敗テスト先行: BrowserPool 全停止状態 → `/readyz` 503
+- [ ] [TDD] 失敗テスト先行: 直近 5 分で 10 件中 6 件失敗(60%)→ `/readyz` 503
+- [ ] [TDD] 失敗テスト先行: 直近 5 分で 100 件中 99 件成功 + pool 健全 → `/readyz` 200
 - [ ] `GET /healthz`: liveness 等価で常時 200 を維持(後方互換)
 - [ ] [TDD] 失敗テスト先行: `/metrics` GET → Prometheus 形式 + 必須 8 メトリクス系統が全て出現(PROP-17)
 - [ ] 既存 `src/utils/logger.ts` は pino ラッパーへ差し替え(既存テスト互換維持)
@@ -286,7 +324,7 @@
 ### T-D 受入基準
 
 - [ ] `vitest run test/integration/observability.test.ts test/integration/rateLimit.test.ts` で PROP-13, 17 green
-- [ ] `/livez` は BrowserPool 初期化前後とも 200、`/readyz` は初期化前 503 / 後 200
+- [ ] `/livez` は BrowserPool 初期化前後とも 200、`/readyz` は (a) 初期化前 503 / (b) 初期化後・健全 200 / (c) 直近 5 分エラー率 ≥ 50% で 503
 - [ ] `curl /metrics` 出力に 8 メトリクス系統が全て含まれる
 
 ### T-D 対象ファイル
