@@ -28,25 +28,28 @@ export function applyPostProcess(input: PostProcessInput): PostProcessResult {
   const start = performance.now()
 
   if (input.format === 'png') {
-    return withPostProcessLog(input.requestId, {
+    void input.requestId
+    return {
       data: input.data,
       durationMs: elapsed(start)
-    })
+    }
   }
 
   if (!input.postProcess?.strip_max_width) {
-    return withPostProcessLog(input.requestId, {
+    void input.requestId
+    return {
       data: input.data,
       durationMs: elapsed(start)
-    })
+    }
   }
 
   const svg = input.data.toString('utf8')
   const processed = stripRootMaxWidth(svg)
-  return withPostProcessLog(input.requestId, {
+  void input.requestId
+  return {
     data: Buffer.from(processed, 'utf8'),
     durationMs: elapsed(start)
-  })
+  }
 }
 
 export function stripRootMaxWidth(svg: string): string {
@@ -90,21 +93,4 @@ function elapsed(start: number): number {
 
 function escapeAttribute(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('"', '&quot;')
-}
-
-function withPostProcessLog(
-  requestId: string | undefined,
-  result: PostProcessResult
-): PostProcessResult {
-  if (requestId) {
-    console.info(
-      JSON.stringify({
-        timestamp: new Date().toISOString(),
-        request_id: requestId,
-        event: 'post_process_completed',
-        post_process_ms: result.durationMs
-      })
-    )
-  }
-  return result
 }

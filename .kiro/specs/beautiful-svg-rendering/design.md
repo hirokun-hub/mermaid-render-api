@@ -457,12 +457,12 @@ export function safeDeepMerge<T extends Record<string, unknown>>(
 | `render_ms` | number | `renderMermaid` 呼出時間 |
 | `post_process_ms` | number | SVG 後処理時間(rewrite_ids / strip_max_width) |
 | `total_ms` | number | リクエスト到達〜レスポンス送信まで |
-| `pool_in_use` | number | acquire 時点の使用中 BrowserContext 数 |
-| `pool_waiting` | number | acquire 時点の wait queue 長 |
+| `pool_in_use` | number | リクエスト完了時点の使用中 BrowserContext 数 |
+| `pool_waiting` | number | リクエスト完了時点の wait queue 長 |
 | `result` | string | `ok` / `parse_error` / `render_error` / `timeout` / `rate_limited` / `invalid_request` / `service_unavailable` |
 | `warnings` | string[] | 警告コード配列(`unknown_key` / `prototype_pollution_attempt` 等) |
 
-警告のみのイベント(例: `prototype_pollution_attempt` の検出)も同じ構造で別ログ行として出力。
+警告のみのイベント(例: `prototype_pollution_attempt` の検出)も、同一リクエストの構造化ログ行の `warnings` に含める。
 
 #### Prometheus メトリクス(`prom-client` 推奨)
 
@@ -471,8 +471,8 @@ export function safeDeepMerge<T extends Record<string, unknown>>(
 | メトリクス | 型 | ラベル |
 |---|---|---|
 | `render_total` | counter | `result` / `format` |
-| `render_duration_ms` | histogram | `format`(buckets: 50, 100, 250, 500, 1000, 2000, 5000, 10000) |
-| `queue_wait_ms` | histogram | (buckets: 10, 50, 100, 500, 1000, 3000) |
+| `render_duration_ms` | histogram | `format`(buckets: 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000) |
+| `queue_wait_ms` | histogram | (buckets: 0, 10, 50, 100, 250, 500, 1000, 3000, 10000) |
 | `browser_pool_in_use` | gauge | - |
 | `browser_pool_queue_size` | gauge | - |
 | `render_timeout_total` | counter | - |
@@ -483,7 +483,7 @@ export function safeDeepMerge<T extends Record<string, unknown>>(
 
 - **`/healthz`**(既存維持): **liveness 相当**。プロセスが生きていれば常に 200。Browser_Pool 初期化中でも 200(REQ-S-01 で「コンテナを起動中に kill されない」ためにこの挙動を要求)。後方互換のため応答仕様は変更しない。
 - **`/livez`**(新規): `/healthz` のエイリアス兼新規名(Kubernetes 慣行に合わせる)。常に 200。
-- **`/readyz`**(新規): **readiness 相当**。BrowserPool が 1 BrowserContext 以上 acquire 可能かつ直近 5 分のエラー率 < 50% で 200、それ以外 503。ロードバランサが新規トラフィックを送信して良いかの判定用。
+- **`/readyz`**(新規): **readiness 相当**。BrowserPool が初期化済みで全停止しておらず、1 BrowserContext 以上を保持していることを副作用なしに判定し、かつ直近 5 分のエラー率 < 50% で 200、それ以外 503。ロードバランサが新規トラフィックを送信して良いかの判定用。
 
 ## 4. データモデル
 

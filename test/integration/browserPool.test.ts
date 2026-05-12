@@ -7,9 +7,30 @@ describe('BrowserPool', () => {
   test('rejects acquire before start with service_unavailable', async () => {
     const pool = new BrowserPool({ launchBrowser: createFakeBrowserFactory() })
 
+    expect(pool.isReady()).toBe(false)
     await expect(pool.acquire()).rejects.toMatchObject({
-      errorType: 'service_unavailable'
+      errorType: 'service_unavailable',
+      reason: 'pool_unavailable'
     })
+  })
+
+  test('reports readiness without acquiring a context', async () => {
+    const pool = new BrowserPool({
+      poolSize: 1,
+      launchBrowser: createFakeBrowserFactory()
+    })
+    await pool.start()
+
+    expect(pool.isReady()).toBe(true)
+    expect(pool.getStats()).toMatchObject({ available: 1, inUse: 0 })
+
+    const context = await pool.acquire()
+    expect(pool.isReady()).toBe(true)
+    expect(pool.getStats()).toMatchObject({ available: 0, inUse: 1 })
+
+    pool.release(context)
+    await pool.close()
+    expect(pool.isReady()).toBe(false)
   })
 
   test('waits for an available context and rejects after timeout', async () => {
@@ -22,7 +43,10 @@ describe('BrowserPool', () => {
     await pool.start()
     const context = await pool.acquire()
 
-    await expect(pool.acquire()).rejects.toBeInstanceOf(BrowserPoolError)
+    await expect(pool.acquire()).rejects.toMatchObject({
+      errorType: 'service_unavailable',
+      reason: 'pool_wait_timeout'
+    })
 
     pool.release(context)
     await pool.close()

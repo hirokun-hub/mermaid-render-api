@@ -1,7 +1,15 @@
+import pino from 'pino'
+
 export type LogOutcome = 'success' | 'failure'
 
-const formatPayload = (payload: Record<string, unknown>): string => {
-  return JSON.stringify(payload)
+export const logger = pino({
+  level: process.env.LOG_LEVEL ?? 'info',
+  timestamp: pino.stdTimeFunctions.isoTime,
+  enabled: process.env.NODE_ENV !== 'test' && process.env.VITEST !== 'true'
+})
+
+export function logStructuredRequest(payload: Record<string, unknown>): void {
+  logger.info(payload)
 }
 
 export function logRequest(requestId: string, method: string, path: string): void {
@@ -12,7 +20,7 @@ export function logRequest(requestId: string, method: string, path: string): voi
     method,
     path
   }
-  console.info(formatPayload(payload))
+  logger.info(payload)
 }
 
 export function logResponse(
@@ -31,7 +39,7 @@ export function logResponse(
     outcome,
     exit_code: exitCode
   }
-  console.info(formatPayload(payload))
+  logger.info(payload)
 }
 
 export function logError(
@@ -49,7 +57,7 @@ export function logError(
     exit_code: exitCode,
     context
   }
-  console.error(formatPayload(payload))
+  logger.error(payload)
 }
 
 export function logStartup(mmdcVersion: string): void {
@@ -58,5 +66,5 @@ export function logStartup(mmdcVersion: string): void {
     event: 'startup',
     mmdc_version: mmdcVersion
   }
-  console.info(formatPayload(payload))
+  logger.info(payload)
 }

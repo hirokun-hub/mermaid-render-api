@@ -21,7 +21,11 @@ import {
 export class BrowserPoolError extends Error {
   readonly errorType = 'service_unavailable' as const
 
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly reason: 'pool_unavailable' | 'pool_wait_timeout' =
+      'pool_unavailable'
+  ) {
     super(message)
     this.name = 'BrowserPoolError'
   }
@@ -33,6 +37,7 @@ export interface BrowserPoolStats {
   queued: number
   browserRestartsTotal: number
   renderTimeoutsTotal: number
+  lastRestartReason?: 'max_uses' | 'max_age' | 'crash'
 }
 
 interface BrowserPoolOptions {
@@ -66,6 +71,7 @@ export class BrowserPool {
   private browserUses = 0
   private browserRestartsTotal = 0
   private renderTimeoutsTotal = 0
+  private lastRestartReason: 'max_uses' | 'max_age' | 'crash' | undefined
   private restartPending = false
   private started = false
   private closing = false
@@ -117,18 +123,22 @@ export class BrowserPool {
     }
 
     if (this.waiting.length >= this.queueMax) {
-      throw new BrowserPoolError('browser pool queue is full')
+      throw new BrowserPoolError('browser pool queue is full', 'pool_wait_timeout')
     }
 
     return new Promise<BrowserContext>((resolve, reject) => {
       const timer = setTimeout(() => {
         const index = this.waiting.findIndex((item) => item.timer === timer)
         if (index >= 0) this.waiting.splice(index, 1)
-        reject(new BrowserPoolError('browser pool wait timeout'))
+        reject(new BrowserPoolError('browser pool wait timeout', 'pool_wait_timeout'))
       }, this.waitTimeoutMs)
 
       this.waiting.push({ resolve, reject, timer })
     })
+  }
+
+  isReady(): boolean {
+    return this.started && !this.closing && this.available.length + this.inUse.size > 0
   }
 
   release(context: BrowserContext): void {
@@ -203,7 +213,8 @@ export class BrowserPool {
       inUse: this.inUse.size,
       queued: this.waiting.length,
       browserRestartsTotal: this.browserRestartsTotal,
-      renderTimeoutsTotal: this.renderTimeoutsTotal
+      renderTimeoutsTotal: this.renderTimeoutsTotal,
+      lastRestartReason: this.lastRestartReason
     }
   }
 
@@ -261,10 +272,12 @@ export class BrowserPool {
     if (!this.browser) return
     if (this.browserUses >= this.maxRendersPerBrowser) {
       this.restartPending = true
+      this.lastRestartReason = 'max_uses'
       return
     }
     if (Date.now() - this.browserStartedAt >= this.maxBrowserAgeMs) {
       this.restartPending = true
+      this.lastRestartReason = 'max_age'
     }
   }
 

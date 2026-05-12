@@ -10,7 +10,8 @@ import type {
   MermaidRendererAdapter,
   RendererCloseOptions,
   RenderInput,
-  RenderResult
+  RenderResult,
+  RendererPoolStats
 } from './mermaidRendererAdapter.js'
 import { applyPostProcess, rewriteRootSvgId } from './postProcess.js'
 
@@ -38,6 +39,7 @@ export class CliFallbackAdapter implements MermaidRendererAdapter {
         return {
           success: false,
           rawErrorText,
+          queueMs: 0,
           exitCode: result.exitCode,
           errorType: result.errorType ?? extracted.errorType,
           errorMessage: extracted.errorMessage,
@@ -55,6 +57,8 @@ export class CliFallbackAdapter implements MermaidRendererAdapter {
       return {
         success: true,
         data: postProcessed.data,
+        queueMs: 0,
+        postProcessMs: postProcessed.durationMs,
         exitCode: 0
       }
     } finally {
@@ -65,6 +69,23 @@ export class CliFallbackAdapter implements MermaidRendererAdapter {
   async close(options: RendererCloseOptions = {}): Promise<void> {
     void options
     await Promise.resolve()
+  }
+
+  async healthCheck(): Promise<boolean> {
+    return true
+  }
+
+  isPoolReady(): boolean {
+    return true
+  }
+
+  getPoolStats(): RendererPoolStats {
+    return {
+      inUse: 0,
+      queued: 0,
+      browserRestartsTotal: 0,
+      renderTimeoutsTotal: 0
+    }
   }
 }
 

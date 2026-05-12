@@ -20,22 +20,36 @@ import {
   buildErrorResponse,
   retryAfterFor
 } from './errorResponse.js'
+import {
+  observability,
+  registerObservabilityRoutes,
+  type RenderLogResult
+} from './observability.js'
+import type { RetryAfterReason } from './errorResponse.js'
 
 const app = express()
 const renderer = createRenderer()
 const rateLimiter = new RateLimiter(RATE_LIMIT_MAX_INFLIGHT)
+
+observability.setPoolStatsProvider(() => renderer.getPoolStats?.() ?? null)
+
+registerObservabilityRoutes(app, {
+  isPoolReady: async () => renderer.isPoolReady?.() ?? false
+})
 
 app.use(express.json({ limit: BODY_LIMIT_BYTES, strict: true }))
 
 app.post('/render', async (req: Request, res: Response) => {
   const requestId = generateRequestId()
   const start = Date.now()
-  let statusCode = 200
-  let outcome: 'success' | 'failure' = 'success'
-  let exitCode: number | null = null
+  let renderStart = start
+  let renderMs = 0
+  let postProcessMs = 0
   let acquired = false
-
-  logRequest(requestId, req.method, req.path)
+  let result: RenderLogResult = 'ok'
+  let queueMs = 0
+  let errorField: string | null = null
+  let errorConstraint: string | null = null
 
   const warnings = new WarningCollector()
 
@@ -49,6 +63,9 @@ app.post('/render', async (req: Request, res: Response) => {
 
   const requestedFormat = validation.requestedFormat
   const normalizedFormat = validation.normalizedFormat
+  for (const warning of validation.warnings) {
+    warnings.add(warning.code, warning.detail)
+  }
 
   const sendError = (
     type: RenderErrorType,
@@ -57,8 +74,10 @@ app.post('/render', async (req: Request, res: Response) => {
     code: number | null,
     extras: Record<string, unknown> = {}
   ) => {
-    statusCode = status
-    outcome = 'failure'
+    result = type
+    errorField = (extras.error_field as string | null | undefined) ?? null
+    errorConstraint =
+      (extras.error_constraint as string | null | undefined) ?? null
     const response = buildErrorResponse({
       requestId,
       errorType: type,
@@ -77,7 +96,10 @@ app.post('/render', async (req: Request, res: Response) => {
       .set('Content-Type', 'application/json')
       .set('X-Request-Id', requestId)
 
-    const retryAfter = retryAfterFor(type)
+    const retryAfter = retryAfterFor(
+      type,
+      (extras.retry_reason as RetryAfterReason | undefined) ?? undefined
+    )
     if (retryAfter) {
       responseBuilder.set('Retry-After', retryAfter)
     }
@@ -100,19 +122,21 @@ app.post('/render', async (req: Request, res: Response) => {
       error_field: error.error_field,
       error_constraint: error.error_constraint
     })
-    logError(
-      requestId,
-      new Error(error.message),
-      null,
-      { stage: 'validation' }
-    )
     const duration = Date.now() - start
-    logResponse(requestId, statusCode, duration, outcome, exitCode)
+    observeRenderRequest({
+      requestId,
+      format: requestedFormat,
+      code: req.body.code,
+      totalMs: duration,
+      renderMs,
+      queueMs,
+      postProcessMs,
+      result,
+      warnings,
+      errorField,
+      errorConstraint
+    })
     return
-  }
-
-  for (const warning of validation.warnings) {
-    warnings.add(warning.code, warning.detail)
   }
 
   const allowed = await rateLimiter.acquire()
@@ -120,7 +144,19 @@ app.post('/render', async (req: Request, res: Response) => {
   if (!allowed) {
     sendError('rate_limited', 429, '', null)
     const duration = Date.now() - start
-    logResponse(requestId, statusCode, duration, outcome, exitCode)
+    observeRenderRequest({
+      requestId,
+      format: normalizedFormat,
+      code: req.body.code,
+      totalMs: duration,
+      renderMs,
+      queueMs,
+      postProcessMs,
+      result,
+      warnings,
+      errorField,
+      errorConstraint
+    })
     return
   }
 
@@ -129,6 +165,7 @@ app.post('/render', async (req: Request, res: Response) => {
       validation.mermaidConfig,
       warnings
     )
+    renderStart = Date.now()
     const renderResult = await renderer.render({
       requestId,
       code: req.body.code,
@@ -137,9 +174,11 @@ app.post('/render', async (req: Request, res: Response) => {
       mermaidConfig,
       postProcess: validation.postProcess
     })
+    queueMs = renderResult.queueMs ?? 0
+    renderMs = Date.now() - renderStart
+    postProcessMs = renderResult.postProcessMs ?? 0
 
     if (!renderResult.success) {
-      exitCode = renderResult.exitCode ?? null
       const status =
         renderResult.errorType === 'timeout'
           ? 504
@@ -152,35 +191,25 @@ app.post('/render', async (req: Request, res: Response) => {
         renderResult.errorType ?? 'render_error',
         status,
         renderResult.rawErrorText ?? '',
-        exitCode,
+        renderResult.exitCode ?? null,
         {
           error_message: renderResult.errorMessage ?? null,
           line: renderResult.line ?? null,
           error_field: renderResult.errorField ?? null,
-          error_constraint: renderResult.errorConstraint ?? null
-        }
-      )
-      logError(
-        requestId,
-        new Error('renderer failed'),
-        exitCode,
-        {
-          error_type: renderResult.errorType,
-          stderr: renderResult.rawErrorText
+          error_constraint: renderResult.errorConstraint ?? null,
+          retry_reason: renderResult.retryReason
         }
       )
       return
     }
 
-    exitCode = null
     res
       .status(200)
       .set('Content-Type', CONTENT_TYPE_MAP[normalizedFormat])
       .set('X-Request-Id', requestId)
       .send(renderResult.data)
   } catch (error) {
-    statusCode = 500
-    outcome = 'failure'
+    result = 'render_error'
     logError(requestId, error as Error, null, { stage: 'render' })
     sendError('render_error', 500, '', null)
   } finally {
@@ -188,7 +217,19 @@ app.post('/render', async (req: Request, res: Response) => {
       rateLimiter.release()
     }
     const duration = Date.now() - start
-    logResponse(requestId, statusCode, duration, outcome, exitCode)
+    observeRenderRequest({
+      requestId,
+      format: normalizedFormat,
+      code: req.body.code,
+      totalMs: duration,
+      renderMs,
+      queueMs,
+      postProcessMs,
+      result,
+      warnings,
+      errorField,
+      errorConstraint
+    })
   }
 })
 
@@ -215,3 +256,43 @@ async function readyRenderer(): Promise<void> {
 }
 
 export { app, closeRenderer, readyRenderer }
+
+function observeRenderRequest(input: {
+  requestId: string
+  format: string
+  code: unknown
+  totalMs: number
+  renderMs: number
+  queueMs: number
+  postProcessMs: number
+  result: RenderLogResult
+  warnings: WarningCollector
+  errorField: string | null
+  errorConstraint: string | null
+}): void {
+  const stats = renderer.getPoolStats?.() ?? {
+    inUse: 0,
+    queued: 0,
+    browserRestartsTotal: 0,
+    renderTimeoutsTotal: 0
+  }
+  observability.syncPoolStats(stats)
+  observability.observeRequest({
+    requestId: input.requestId,
+    format: input.format,
+    codeBytes:
+      typeof input.code === 'string'
+        ? Buffer.byteLength(input.code, 'utf8')
+        : 0,
+    queueMs: input.queueMs,
+    renderMs: input.renderMs,
+    postProcessMs: input.postProcessMs,
+    totalMs: input.totalMs,
+    poolInUse: stats.inUse,
+    poolWaiting: stats.queued,
+    result: input.result,
+    warnings: input.warnings.drain().map((warning) => warning.code),
+    errorField: input.errorField,
+    errorConstraint: input.errorConstraint
+  })
+}

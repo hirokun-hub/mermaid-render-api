@@ -6,7 +6,8 @@ import type {
   MermaidRendererAdapter,
   RendererCloseOptions,
   RenderInput,
-  RenderResult
+  RenderResult,
+  RendererPoolStats
 } from './mermaidRendererAdapter.js'
 import { applyPostProcess, buildSvgId } from './postProcess.js'
 
@@ -21,12 +22,15 @@ export class ProgrammaticAdapter implements MermaidRendererAdapter {
   }
 
   async render(input: RenderInput): Promise<RenderResult> {
+    let queueMs = 0
     try {
       if (!this.started) {
         throw new BrowserPoolError('browser pool is not initialized')
       }
 
+      const acquireStart = Date.now()
       const context = await this.pool.acquire()
+      queueMs = Date.now() - acquireStart
       let shouldRelease = true
 
       try {
@@ -48,6 +52,8 @@ export class ProgrammaticAdapter implements MermaidRendererAdapter {
         return {
           success: true,
           data: postProcessed.data,
+          queueMs,
+          postProcessMs: postProcessed.durationMs,
           exitCode: 0
         }
       } catch (error) {
@@ -58,6 +64,7 @@ export class ProgrammaticAdapter implements MermaidRendererAdapter {
           return {
             success: false,
             errorType: 'timeout',
+            queueMs,
             errorMessage: 'render timed out',
             rawErrorText: 'render timed out',
             exitCode: null,
@@ -72,6 +79,7 @@ export class ProgrammaticAdapter implements MermaidRendererAdapter {
           success: false,
           rawErrorText,
           errorType: extracted.errorType,
+          queueMs,
           errorMessage: extracted.errorMessage,
           line: extracted.line,
           exitCode: null
@@ -84,10 +92,12 @@ export class ProgrammaticAdapter implements MermaidRendererAdapter {
         return {
           success: false,
           errorType: error.errorType,
+          queueMs,
           errorMessage: error.message,
           rawErrorText: error.message,
           exitCode: null,
-          line: null
+          line: null,
+          retryReason: error.reason
         }
       }
 
@@ -95,6 +105,7 @@ export class ProgrammaticAdapter implements MermaidRendererAdapter {
       return {
         success: false,
         errorType: 'render_error',
+        queueMs,
         errorMessage: rawErrorText,
         rawErrorText,
         exitCode: null,
@@ -106,6 +117,26 @@ export class ProgrammaticAdapter implements MermaidRendererAdapter {
   async close(options: RendererCloseOptions = {}): Promise<void> {
     await this.pool.close(options)
     this.started = false
+  }
+
+  async healthCheck(): Promise<boolean> {
+    if (!this.started) return false
+    return this.pool.healthCheck()
+  }
+
+  isPoolReady(): boolean {
+    return this.started && this.pool.isReady()
+  }
+
+  getPoolStats(): RendererPoolStats {
+    const stats = this.pool.getStats()
+    return {
+      inUse: stats.inUse,
+      queued: stats.queued,
+      browserRestartsTotal: stats.browserRestartsTotal,
+      renderTimeoutsTotal: stats.renderTimeoutsTotal,
+      lastRestartReason: stats.lastRestartReason
+    }
   }
 }
 

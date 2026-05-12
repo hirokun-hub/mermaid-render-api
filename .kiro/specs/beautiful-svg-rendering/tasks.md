@@ -304,11 +304,11 @@
 
 ### D-1 observability 新規(P-07)
 
-- [ ] `src/server/observability.ts` 新規:
-  - [ ] pino logger インスタンス、構造化 JSON ログ
-  - [ ] 1 リクエスト 1 ログ行、フィールド: `request_id`, `format`, `code_bytes`, `queue_ms`, `render_ms`, `post_process_ms`, `total_ms`, `pool_in_use`, `pool_waiting`, `result`(`ok | parse_error | render_error | timeout | rate_limited | invalid_request | service_unavailable` — design.md §4.1 と一致、429 も 1 リクエスト 1 ログ行として出力)、`warnings: WarningCode[]`
-  - [ ] **Mermaid コード本体はログに残さない**(REQ-UN-04: 永続保存禁止)。`code_bytes` のサイズのみ記録、`code` 文字列は出力しない
-  - [ ] prom-client メトリクス 8 系統:
+- [x] `src/server/observability.ts` 新規:
+  - [x] pino logger インスタンス、構造化 JSON ログ
+  - [x] 1 リクエスト 1 ログ行、フィールド: `request_id`, `format`, `code_bytes`, `queue_ms`, `render_ms`, `post_process_ms`, `total_ms`, `pool_in_use`, `pool_waiting`, `result`(`ok | parse_error | render_error | timeout | rate_limited | invalid_request | service_unavailable` — design.md §4.1 と一致、429 も 1 リクエスト 1 ログ行として出力)、`warnings: WarningCode[]`
+  - [x] **Mermaid コード本体はログに残さない**(REQ-UN-04: 永続保存禁止)。`code_bytes` のサイズのみ記録、`code` 文字列は出力しない
+  - [x] prom-client メトリクス 8 系統:
     - `render_total{result, format}` Counter
     - `render_duration_ms{format}` Histogram
     - `queue_wait_ms` Histogram
@@ -317,31 +317,31 @@
     - `render_timeout_total` Counter
     - `browser_restarts_total{reason}` Counter(reason: `max_uses` | `max_age` | `crash` — design.md §4.1 と一致。`health_check` 起因の restart も `crash` ラベルに集約)
     - `validation_error_total{field, constraint}` Counter
-- [ ] `GET /metrics`: Prometheus text format
-- [ ] `GET /livez`: 常時 200(プロセス生存判定)
-- [ ] `GET /readyz`: 以下 2 条件すべて成立で 200、それ以外 503(requirements.md §5.2):
+- [x] `GET /metrics`: Prometheus text format
+- [x] `GET /livez`: 常時 200(プロセス生存判定)
+- [x] `GET /readyz`: 以下 2 条件すべて成立で 200、それ以外 503(requirements.md §5.2):
   - (a) BrowserPool が 1 BrowserContext 以上 acquire 可能(初期化完了 + 全停止していない)
   - (b) 直近 5 分のリクエストエラー率 < 50%(`render_total{result="ok"}` / `render_total` で算出、サンプル数閾値: ≥ 10 リクエスト未満なら (a) のみで判定)
-- [ ] エラー率算出のための 5 分スライディングウィンドウ集計を observability 層に追加
-- [ ] [TDD] 失敗テスト先行: BrowserPool 全停止状態 → `/readyz` 503
-- [ ] [TDD] 失敗テスト先行: 直近 5 分で 10 件中 6 件失敗(60%)→ `/readyz` 503
-- [ ] [TDD] 失敗テスト先行: 直近 5 分で 100 件中 99 件成功 + pool 健全 → `/readyz` 200
-- [ ] `GET /healthz`: liveness 等価で常時 200 を維持(後方互換)
-- [ ] [TDD] 失敗テスト先行: `/metrics` GET → Prometheus 形式 + 必須 8 メトリクス系統が全て出現(PROP-17)
-- [ ] 既存 `src/utils/logger.ts` は pino ラッパーへ差し替え(既存テスト互換維持)
+- [x] エラー率算出のための 5 分スライディングウィンドウ集計を observability 層に追加
+- [x] [TDD] 失敗テスト先行: BrowserPool 全停止状態 → `/readyz` 503
+- [x] [TDD] 失敗テスト先行: 直近 5 分で 10 件中 6 件失敗(60%)→ `/readyz` 503
+- [x] [TDD] 失敗テスト先行: 直近 5 分で 100 件中 99 件成功 + pool 健全 → `/readyz` 200
+- [x] `GET /healthz`: liveness 等価で常時 200 を維持(後方互換)
+- [x] [TDD] 失敗テスト先行: `/metrics` GET → Prometheus 形式 + 必須 8 メトリクス系統が全て出現(PROP-17)
+- [x] 既存 `src/utils/logger.ts` は pino ラッパーへ差し替え(既存テスト互換維持)
 
 ### D-2 rateLimiter 拡張(P-08)
 
-- [ ] HTTP 層即時拒否: in-flight カウンタが `RATE_LIMIT_MAX_INFLIGHT` 超で即時 HTTP 429 + `Retry-After`(キューに入れずに reject)
-- [ ] BrowserPool 層との分離(Pool 層は `POOL_QUEUE_MAX` を超えたら 503 + `Retry-After`)
-- [ ] [TDD] 失敗テスト先行: HTTP 層が `RATE_LIMIT_MAX_INFLIGHT + 1` 番目のリクエストを即時 429、Pool 層は `POOL_QUEUE_MAX` 超で 503(PROP-13 完成)
-- [ ] [TDD] 失敗テスト先行: `Retry-After` ヘッダ値が秒単位の正の整数
+- [x] HTTP 層即時拒否: in-flight カウンタが `RATE_LIMIT_MAX_INFLIGHT` 超で即時 HTTP 429 + `Retry-After`(キューに入れずに reject)
+- [x] BrowserPool 層との分離(Pool 層は `POOL_QUEUE_MAX` を超えたら 503 + `Retry-After`)
+- [x] [TDD] 失敗テスト先行: HTTP 層が `RATE_LIMIT_MAX_INFLIGHT + 1` 番目のリクエストを即時 429、Pool 層は `POOL_QUEUE_MAX` 超で 503(PROP-13 完成)
+- [x] [TDD] 失敗テスト先行: `Retry-After` ヘッダ値が秒単位の正の整数
 
 ### Phase 3 受入基準
 
-- [ ] `vitest run test/integration/observability.test.ts test/integration/rateLimit.test.ts` で PROP-13, 17 green
-- [ ] `/livez` は BrowserPool 初期化前後とも 200、`/readyz` は (a) 初期化前 503 / (b) 初期化後・健全 200 / (c) 直近 5 分エラー率 ≥ 50% で 503
-- [ ] `curl /metrics` 出力に 8 メトリクス系統が全て含まれる
+- [x] `vitest run test/integration/observability.test.ts test/integration/rateLimit.test.ts` で PROP-13, 17 green
+- [x] `/livez` は BrowserPool 初期化前後とも 200、`/readyz` は (a) 初期化前 503 / (b) 初期化後・健全 200 / (c) 直近 5 分エラー率 ≥ 50% で 503
+- [x] `curl /metrics` 出力に 8 メトリクス系統が全て含まれる
 
 ### Phase 3 対象ファイル
 
@@ -368,7 +368,7 @@
 - [ ] 初期化完了前のリクエストは 503 / `error_type=service_unavailable` を返す(PROP-7)
 - [ ] SIGTERM ハンドラ: `pool.close()` → server.close() → process.exit(0)
 - [ ] `/healthz` はプロセス生存応答(常時 200、liveness 等価)
-- [ ] `/livez` / `/readyz` / `/metrics` ルートを D-1 から登録
+- [x] `/livez` / `/readyz` / `/metrics` ルートを D-1 から登録
 
 ### E-2 `src/server/app.ts` 配線
 
@@ -383,8 +383,8 @@
 ### E-3 `package.json` 依存(P-10)
 
 - [ ] `@mermaid-js/mermaid-cli` を exact pin に変更(caret/tilde 削除、例: `"11.12.0"`)— NFR-02
-- [ ] `pino` を `dependencies` に追加(現在は推移依存のみ)
-- [ ] `prom-client` を `dependencies` に追加(現状未導入)
+- [x] `pino` を `dependencies` に追加(現在は推移依存のみ)
+- [x] `prom-client` を `dependencies` に追加(現状未導入)
 - [ ] `puppeteer` を明示 `dependencies` 化(C-M-10: `@mermaid-js/mermaid-cli` の peerDep `^23` と同期)
 - [ ] `npm ci` で `package-lock.json` 同期、コミット
 - [ ] `README.md` / 開発者ドキュメントに「依存更新は画像差分 + property test + perf check 必須」と明記

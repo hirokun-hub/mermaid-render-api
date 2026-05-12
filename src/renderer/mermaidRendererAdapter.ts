@@ -25,9 +25,13 @@ export type RenderErrorType =
   | 'invalid_request'
   | 'service_unavailable'
 
+export type ServiceUnavailableReason = 'pool_unavailable' | 'pool_wait_timeout'
+
 export interface RenderResult {
   success: boolean
   data?: Buffer
+  queueMs?: number
+  postProcessMs?: number
   rawErrorText?: string
   exitCode?: number | null
   errorType?: RenderErrorType
@@ -35,14 +39,26 @@ export interface RenderResult {
   line?: number | null
   errorField?: string | null
   errorConstraint?: string | null
+  retryReason?: ServiceUnavailableReason
 }
 
 export interface RendererCloseOptions {
   drainTimeoutMs?: number
 }
 
+export interface RendererPoolStats {
+  inUse: number
+  queued: number
+  browserRestartsTotal: number
+  renderTimeoutsTotal: number
+  lastRestartReason?: 'max_uses' | 'max_age' | 'crash'
+}
+
 export interface MermaidRendererAdapter {
   ready(): Promise<void>
   render(input: RenderInput): Promise<RenderResult>
   close(options?: RendererCloseOptions): Promise<void>
+  healthCheck?(): Promise<boolean>
+  isPoolReady?(): boolean
+  getPoolStats?(): RendererPoolStats
 }
