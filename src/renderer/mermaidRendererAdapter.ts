@@ -35,7 +35,12 @@ export interface RenderResult {
   errorConstraint?: string | null
 }
 
+export interface RendererCloseOptions {
+  drainTimeoutMs?: number
+}
+
 export interface MermaidRendererAdapter {
+  ready(): Promise<void>
   render(input: RenderInput): Promise<RenderResult>
-  close(): Promise<void>
+  close(options?: RendererCloseOptions): Promise<void>
 }

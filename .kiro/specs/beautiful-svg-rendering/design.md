@@ -280,7 +280,9 @@ context.on('page', async (page) => {
     if (url.startsWith('data:') || url.startsWith('about:') || url.startsWith('blob:')) {
       return req.continue()
     }
-    return req.abort()  // http/https/file 全遮断(SSRF 対策)
+    // 例外: @mermaid-js/mermaid-cli パッケージ配下の static asset のみ
+    // canonical path を realpath + startsWith で厳密判定して req.continue() する
+    return req.abort()  // http/https と上記例外外の file を遮断(SSRF 対策)
   })
 })
 ```
@@ -644,10 +646,10 @@ function extractMermaidError(rawErrorText: string): {
 
 要件定義書 §8 で「同一ページ複数 SVG embed の完全対応は将来別票」と定めた。本改修では次のみ実装する:
 
-- `post_process.rewrite_ids === true`(default)時のみ、`renderMermaid()` 呼出時に `svgId: \`mermaid-\${requestId}\`` を渡す
+- `post_process.rewrite_ids === true`(default)時のみ、Programmatic 経路では `renderMermaid()` 呼出時に `svgId: \`mermaid-\${requestId}\`` を渡す。CLI fallback 経路では `mmdc` に同等の引数が無いため、出力 SVG のルート `id` のみを生成後に `mermaid-<requestId>` へ書き換える
 - これにより SVG ルート要素の `id` 属性が `mermaid-<UUID>` となり、最低限の名前空間分離が達成される
 - `rewrite_ids === false` 時は `svgId` を渡さず、Mermaid 既定値(`mermaid-1` 等)で出力する
-- 適用経路: **SVG 生成時**(`renderMermaid()` 引数経由、SVG 文字列を加工しない)
+- 適用経路: Programmatic は **SVG 生成時**(`renderMermaid()` 引数経由)、CLI fallback は **SVG 生成後**(`src/renderer/postProcess.ts` のルート ID 書き換え utility 経由)
 
 #### 7.1.1 フェーズ別セマンティクス
 

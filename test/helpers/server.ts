@@ -1,13 +1,14 @@
 import { createServer } from 'node:http'
 
-import { app } from '../../src/server/app.js'
-
 export interface TestServer {
   baseUrl: string
   close: () => Promise<void>
 }
 
 export async function startTestServer(): Promise<TestServer> {
+  process.env.RENDERER_MODE ??= 'cli'
+  const { app, readyRenderer } = await import('../../src/server/app.js')
+  await readyRenderer()
   const server = createServer(app)
 
   await new Promise<void>((resolve) => {

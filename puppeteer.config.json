@@ -1,3 +1,12 @@
 {
-  "args": ["--no-sandbox", "--disable-setuid-sandbox"]
+  "headless": "shell",
+  "args": [
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--disable-extensions",
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--font-render-hinting=none"
+  ],
+  "protocolTimeout": 30000
 }

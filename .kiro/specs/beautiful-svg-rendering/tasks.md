@@ -149,75 +149,76 @@
 
 ### B-1 BrowserPool skeleton(P-04-1)
 
-- [ ] [TDD] 失敗テスト先行: `acquire()` 同時呼出が `POOL_QUEUE_MAX` を超えると `POOL_WAIT_TIMEOUT_MS` 後に reject(503 用 error_type=service_unavailable)
-- [ ] [TDD] 失敗テスト先行: `MAX_RENDERS_PER_CONTEXT` 回使用した context は次回 `acquire()` で recycle される(再生成)
-- [ ] [TDD] 失敗テスト先行: 100 連続リクエスト後、Puppeteer **browser プロセス数** が設計上の少数(1〜2、recycle 一時 +1)を超えない(PROP-6)
-- [ ] [TDD] 失敗テスト先行: Pool 初期化前に `acquire()` 呼出 → 503 / `error_type=service_unavailable`(PROP-7)
-- [ ] 内部 semaphore + waiting queue 実装
-- [ ] BrowserContext 単位の使用回数カウンタ
+- [x] [TDD] 失敗テスト先行: `acquire()` 同時呼出が `POOL_QUEUE_MAX` を超えると `POOL_WAIT_TIMEOUT_MS` 後に reject(503 用 error_type=service_unavailable)
+- [x] [TDD] 失敗テスト先行: `MAX_RENDERS_PER_CONTEXT` 回使用した context は次回 `acquire()` で recycle される(再生成)
+- [x] [TDD] 失敗テスト先行: 100 連続リクエスト後、Puppeteer **browser プロセス数** が設計上の少数(1〜2、recycle 一時 +1)を超えない(PROP-6)
+- [x] [TDD] 失敗テスト先行: Pool 初期化前に `acquire()` 呼出 → 503 / `error_type=service_unavailable`(PROP-7)
+- [x] 内部 semaphore + waiting queue 実装
+- [x] BrowserContext 単位の使用回数カウンタ
 
 ### B-2 セキュリティ強化(P-04-2)
 
-- [ ] page 作成直後に `page.setRequestInterception(true)` + ハンドラ: `http:` / `https:` / `file:` を block、`data:` / `about:` / `blob:` のみ allow(C-S-05)
-- [ ] Puppeteer launch args: `headless: 'shell'`、`--disable-dev-shm-usage`、`--disable-gpu`、`--disable-extensions`(C-P-04)
-- [ ] `--no-sandbox` は付けない(C-P-01、Docker seccomp で隔離)
-- [ ] [TDD] 外部 URL fetch 試行を含む Mermaid コードが request interception で遮断されることを統合テストで検証
+- [x] page 作成直後に `page.setRequestInterception(true)` + ハンドラ: `http:` / `https:` / `file:` を block、`data:` / `about:` / `blob:` のみ allow。ただし `@mermaid-js/mermaid-cli` パッケージ配下 static asset の `file:` は canonical path 厳密一致で allow(C-S-05)
+- [x] Puppeteer launch args: `headless: 'shell'`、`--disable-dev-shm-usage`、`--disable-gpu`、`--disable-extensions`(C-P-04)
+- [x] `--no-sandbox` は付けない(C-P-01、Docker seccomp で隔離)
+- [x] [TDD] 外部 URL fetch 試行を含む Mermaid コードが request interception で遮断されることを統合テストで検証
 
 ### B-3 ライフサイクル管理(P-04-3)
 
-- [ ] browser 全体の使用回数 `MAX_RENDERS_PER_BROWSER` 到達で browser 再起動
-- [ ] browser 起動からの経過時間 `MAX_BROWSER_AGE_MS` 到達で再起動
-- [ ] ヘルスチェック: page evaluate に失敗した context は除外して新規生成(REQ-S-02)
-- [ ] `close()`: queue close → 残処理 drain → browser close(graceful shutdown)
-- [ ] [TDD] `browser_restarts_total` メトリクスが recycle 時にインクリメント(D-1 と連動)
+- [x] browser 全体の使用回数 `MAX_RENDERS_PER_BROWSER` 到達で browser 再起動
+- [x] browser 起動からの経過時間 `MAX_BROWSER_AGE_MS` 到達で再起動
+- [x] ヘルスチェック: page evaluate に失敗した context は除外して新規生成(REQ-S-02)
+- [x] `close()`: queue close → 残処理 drain → browser close(graceful shutdown)
+- [x] [TDD] `browser_restarts_total` メトリクスが recycle 時にインクリメント(D-1 と連動)
 
 ### B-4 ProgrammaticAdapter / CliFallbackAdapter(P-03 実装 + P-04-4)
 
-- [ ] `ProgrammaticAdapter implements MermaidRendererAdapter`:
-  - [ ] BrowserPool から context 取得 → `renderMermaid(context, code, format, options)` 呼出
-  - [ ] [TDD] 失敗テスト先行: v11.3.0 PR #767 で破壊変更された `Uint8Array` 戻り値を `Buffer.from(uint8array)` 正規化(C-M-08)
-  - [ ] エラー時は `extractMermaidError()` を通して `RenderResult.errorMessage` / `line` を設定
-  - [ ] `svgId` オプションを `renderMermaid` 経由で渡す(SVG ルート ID 一意化)
-- [ ] `CliFallbackAdapter implements MermaidRendererAdapter`:
-  - [ ] 既存 `MermaidRenderer.render()` の mmdc subprocess 経路をラップ
-  - [ ] `RENDERER_MODE=cli` で起動時に選択される経路として確立(NFR-06)
-  - [ ] [TDD] failing: `RENDERER_MODE=cli` で起動 → 単純 flowchart レンダリング成功、機能等価(PROP-16)
+- [x] `ProgrammaticAdapter implements MermaidRendererAdapter`:
+  - [x] BrowserPool から context 取得 → `renderMermaid(context, code, format, options)` 呼出
+  - [x] [TDD] 失敗テスト先行: v11.3.0 PR #767 で破壊変更された `Uint8Array` 戻り値を `Buffer.from(uint8array)` 正規化(C-M-08)
+  - [x] エラー時は `extractMermaidError()` を通して `RenderResult.errorMessage` / `line` を設定
+  - [x] `svgId` オプションを `renderMermaid` 経由で渡す(SVG ルート ID 一意化)
+- [x] `CliFallbackAdapter implements MermaidRendererAdapter`:
+  - [x] 既存 `MermaidRenderer.render()` の mmdc subprocess 経路をラップ
+  - [x] `RENDERER_MODE=cli` で起動時に選択される経路として確立(NFR-06)
+  - [x] `rewrite_ids: true` 時は CLI 出力 SVG のルート ID を `mermaid-<requestId>` に後処理で一意化
+  - [x] [TDD] failing: `RENDERER_MODE=cli` で起動 → 単純 flowchart レンダリング成功、機能等価(PROP-16)
 
 ### B-5 render タイムアウト処理(親要件「要件 4」継承、C-S-06)
 
 > **テスト方針メモ**: adapter / pool 単体テストは validator バイパスのため `timeoutMs` に `MIN_TIMEOUT_MS` 未満(例 100ms)を直渡しできる。HTTP 統合テストは validator 経由のため `timeout_ms ≥ MIN_TIMEOUT_MS(1000)` を遵守し、render 側を遅延スタブで模擬する。
 
-- [ ] [TDD] 失敗テスト先行(adapter 単体、`timeoutMs=100` 直渡し): `timeout_ms` 経過時点で `error_type=timeout` を返す
-- [ ] [TDD] 失敗テスト先行(adapter 単体): タイムアウト時に当該 BrowserContext を **破棄**(`context.close()`)、ハングした page をプールに戻さない(プール枯渇防止)
-- [ ] [TDD] 失敗テスト先行(adapter 単体): タイムアウト時に semaphore を解放し、後続リクエストがブロックされない
-- [ ] [TDD] 失敗テスト先行(adapter 単体): 連続タイムアウトでも `browser_pool_in_use` がリークせず元値に戻る
-- [ ] [TDD] 失敗テスト先行(HTTP 統合、`timeout_ms=1000` + 遅延スタブ): HTTP 504 が返る
-- [ ] 実装: `Promise.race([renderMermaid(...), timeoutPromise(timeout_ms)])` で競争、勝者判定後に敗者側の context を `discard()` ルートへ
-- [ ] `render_timeout_total` メトリクスをインクリメント(D-1 と連動)
+- [x] [TDD] 失敗テスト先行(adapter 単体、`timeoutMs=100` 直渡し): `timeout_ms` 経過時点で `error_type=timeout` を返す
+- [x] [TDD] 失敗テスト先行(adapter 単体): タイムアウト時に当該 BrowserContext を **破棄**(`context.close()`)、ハングした page をプールに戻さない(プール枯渇防止)
+- [x] [TDD] 失敗テスト先行(adapter 単体): タイムアウト時に semaphore を解放し、後続リクエストがブロックされない
+- [x] [TDD] 失敗テスト先行(adapter 単体): 連続タイムアウトでも `browser_pool_in_use` がリークせず元値に戻る
+- [x] [TDD] 失敗テスト先行(HTTP 統合、`timeout_ms=1000` + 遅延スタブ): HTTP 504 が返る
+- [x] 実装: `Promise.race([renderMermaid(...), timeoutPromise(timeout_ms)])` で競争、勝者判定後に敗者側の context を `discard()` ルートへ
+- [x] `render_timeout_total` メトリクスをインクリメント(D-1 と連動)
 
 ### B-6 Post Process: `src/renderer/postProcess.ts` 新規
 
-- [ ] `rewrite_ids: true`(default)時、SVG ルート要素 `id` 属性を `mermaid-<requestId>` に一意化(SVG 生成時に `renderMermaid` の `svgId` 引数経由、SVG 文字列加工しない)
-- [ ] `rewrite_ids: false` 時は `svgId` を渡さず Mermaid 既定値で出力
-- [ ] [TDD] 失敗テスト先行: `strip_max_width: true` + format=svg 時、ルート `<svg>` の `style="max-width:300px; color:black;"` から `max-width` 宣言のみ case-insensitive で除去、他宣言保持
-- [ ] [TDD] 失敗テスト先行: `style` が `max-width` 単独 → `style` 属性ごと削除
-- [ ] [TDD] 失敗テスト先行: `<svg style="MAX-WIDTH:300PX">` のような大小文字混在も除去
-- [ ] [TDD] 失敗テスト先行: 子要素の `<g style="max-width:...">` には**触れない**(ルートのみ)
-- [ ] [TDD] 失敗テスト先行: `strip_max_width: false`(default)時は SVG 文字列に変更なし(no-op)
-- [ ] [TDD] 失敗テスト先行: `useMaxWidth: false`(BEAUTIFUL_DEFAULTS)+ `strip_max_width: true` 時、Mermaid が `max-width` を出力しないため最終的に no-op
-- [ ] `post_process_ms` を計測して構造化ログに出力(NFR-05)
-- [ ] `format=png` 時は SVG 加工をスキップ(警告は C-1 / E-2 側で発生済)
+- [x] `rewrite_ids: true`(default)時、SVG ルート要素 `id` 属性を `mermaid-<requestId>` に一意化(Programmatic は `renderMermaid` の `svgId` 引数経由、CLI fallback は SVG 文字列のルート ID 後処理)
+- [x] `rewrite_ids: false` 時は `svgId` を渡さず Mermaid 既定値で出力
+- [x] [TDD] 失敗テスト先行: `strip_max_width: true` + format=svg 時、ルート `<svg>` の `style="max-width:300px; color:black;"` から `max-width` 宣言のみ case-insensitive で除去、他宣言保持
+- [x] [TDD] 失敗テスト先行: `style` が `max-width` 単独 → `style` 属性ごと削除
+- [x] [TDD] 失敗テスト先行: `<svg style="MAX-WIDTH:300PX">` のような大小文字混在も除去
+- [x] [TDD] 失敗テスト先行: 子要素の `<g style="max-width:...">` には**触れない**(ルートのみ)
+- [x] [TDD] 失敗テスト先行: `strip_max_width: false`(default)時は SVG 文字列に変更なし(no-op)
+- [x] [TDD] 失敗テスト先行: `useMaxWidth: false`(BEAUTIFUL_DEFAULTS)+ `strip_max_width: true` 時、Mermaid が `max-width` を出力しないため最終的に no-op
+- [x] `post_process_ms` を計測して構造化ログに出力(NFR-05)
+- [x] `format=png` 時は SVG 加工をスキップ(警告は C-1 / E-2 側で発生済)
 
 ### Phase 1 受入基準
 
-- [ ] `vitest run test/integration/browserPool.test.ts` で PROP-6, 7 green
-- [ ] `RENDERER_MODE=cli npm start` で起動 → PROP-16 green(レイテンシ劣化は許容)
-- [ ] `MAX_RENDERS_PER_CONTEXT = 3` に下げた状態で 10 リクエストを送信、recycle が 3 回起きることをログで確認
-- [ ] graceful shutdown: SIGTERM 送信 → 進行中リクエスト完了 → プロセス終了(15 秒以内)
-- [ ] timeout テスト:
-  - [ ] **adapter 単体テスト**(validator バイパス、`timeoutMs=100` を直渡し)で `ProgrammaticAdapter.render` が `error_type=timeout` を返し、context 破棄 + semaphore 解放を確認
-  - [ ] **HTTP 統合テスト**(validator 経由、`MIN_TIMEOUT_MS=1000` 制約遵守)では `timeout_ms=1000` + 内部で人為的に重い render(`page.waitForTimeout(5000)` 等のスタブ)→ HTTP 504、`browser_pool_in_use` がリーク無く元値に戻る
-- [ ] postProcess unit test: `strip_max_width` の 6 ケース(true/false × 単独/複合/大小混在/子要素影響なし)green
+- [x] `vitest run test/integration/browserPool.test.ts` で PROP-6, 7 green
+- [x] `RENDERER_MODE=cli npm start` で起動 → PROP-16 green(レイテンシ劣化は許容)
+- [x] `MAX_RENDERS_PER_CONTEXT = 3` に下げた状態で 10 リクエストを送信、recycle が 3 回起きることをログで確認
+- [x] graceful shutdown: SIGTERM 送信 → 進行中リクエスト完了 → プロセス終了(15 秒以内)
+- [x] timeout テスト:
+  - [x] **adapter 単体テスト**(validator バイパス、`timeoutMs=100` を直渡し)で `ProgrammaticAdapter.render` が `error_type=timeout` を返し、context 破棄 + semaphore 解放を確認
+  - [x] **HTTP 統合テスト**(validator 経由、`MIN_TIMEOUT_MS=1000` 制約遵守)では `timeout_ms=1000` + 内部で人為的に重い render(`page.waitForTimeout(5000)` 等のスタブ)→ HTTP 504、`browser_pool_in_use` がリーク無く元値に戻る
+- [x] postProcess unit test: `strip_max_width` の 6 ケース(true/false × 単独/複合/大小混在/子要素影響なし)green
 
 ### Phase 1 対象ファイル
 

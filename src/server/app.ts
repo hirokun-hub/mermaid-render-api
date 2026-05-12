@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express'
 
 import {
   BODY_LIMIT_BYTES,
+  buildRequestMermaidConfig,
   CONTENT_TYPE_MAP,
   DEFAULT_TIMEOUT_MS,
   RATE_LIMIT_MAX_INFLIGHT
@@ -9,11 +10,13 @@ import {
 import { generateRequestId } from '../utils/requestId.js'
 import { logRequest, logResponse, logError } from '../utils/logger.js'
 import { validateRenderRequest } from '../validation/inputValidator.js'
-import { MermaidRenderer } from '../renderer/mermaidRenderer.js'
 import { RateLimiter } from '../limiter/rateLimiter.js'
+import { createRenderer } from '../renderer/createRenderer.js'
+import type { RendererCloseOptions } from '../renderer/mermaidRendererAdapter.js'
+import { WarningCollector } from '../utils/warnings.js'
 
 const app = express()
-const renderer = new MermaidRenderer()
+const renderer = createRenderer()
 const rateLimiter = new RateLimiter(RATE_LIMIT_MAX_INFLIGHT)
 
 app.use(express.json({ limit: BODY_LIMIT_BYTES, strict: true }))
@@ -32,6 +35,7 @@ app.post('/render', async (req: Request, res: Response) => {
     typeof req.body.timeout_ms === 'number' && req.body.timeout_ms > 0
       ? req.body.timeout_ms
       : DEFAULT_TIMEOUT_MS
+  const warnings = new WarningCollector()
 
   const validation = validateRenderRequest({
     code: req.body.code,
@@ -45,7 +49,8 @@ app.post('/render', async (req: Request, res: Response) => {
     type: string,
     status: number,
     stderr: string,
-    code: number | null
+    code: number | null,
+    extras: Record<string, unknown> = {}
   ) => {
     statusCode = status
     outcome = 'failure'
@@ -59,7 +64,8 @@ app.post('/render', async (req: Request, res: Response) => {
         status_code: status,
         stderr,
         exit_code: code,
-        format: requestedFormat
+        format: requestedFormat,
+        ...extras
       })
   }
 
@@ -93,32 +99,51 @@ app.post('/render', async (req: Request, res: Response) => {
   }
 
   try {
-    const renderResult = await renderer.render(
-      requestId,
-      req.body.code,
-      normalizedFormat,
-      requestedTimeout
+    const mermaidConfig = buildRequestMermaidConfig(
+      isRecord(req.body.mermaid_config) ? req.body.mermaid_config : undefined,
+      warnings
     )
+    const renderResult = await renderer.render({
+      requestId,
+      code: req.body.code,
+      format: normalizedFormat,
+      timeoutMs: requestedTimeout,
+      mermaidConfig,
+      postProcess: isRecord(req.body.post_process)
+        ? req.body.post_process
+        : undefined
+    })
 
     if (!renderResult.success) {
       exitCode = renderResult.exitCode ?? null
       const status =
         renderResult.errorType === 'timeout'
           ? 504
+          : renderResult.errorType === 'service_unavailable'
+            ? 503
           : renderResult.errorType === 'parse_error'
             ? 400
             : 500
       sendError(
         renderResult.errorType ?? 'render_error',
         status,
-        renderResult.stderr ?? '',
-        exitCode
+        renderResult.rawErrorText ?? '',
+        exitCode,
+        {
+          error_message: renderResult.errorMessage ?? null,
+          line: renderResult.line ?? null,
+          error_field: renderResult.errorField ?? null,
+          error_constraint: renderResult.errorConstraint ?? null
+        }
       )
       logError(
         requestId,
         new Error('renderer failed'),
         exitCode,
-        { error_type: renderResult.errorType, stderr: renderResult.stderr }
+        {
+          error_type: renderResult.errorType,
+          stderr: renderResult.rawErrorText
+        }
       )
       return
     }
@@ -157,4 +182,16 @@ app.get('/healthz', (req: Request, res: Response) => {
   logResponse(requestId, 200, duration, 'success', null)
 })
 
-export { app }
+async function closeRenderer(options: RendererCloseOptions = {}): Promise<void> {
+  await renderer.close(options)
+}
+
+async function readyRenderer(): Promise<void> {
+  await renderer.ready()
+}
+
+export { app, closeRenderer, readyRenderer }
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}

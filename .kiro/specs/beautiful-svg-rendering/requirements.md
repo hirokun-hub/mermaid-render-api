@@ -73,7 +73,7 @@
 - **C-S-02**: Mermaid の `maxTextSize`(schema デフォルト 50000)と `maxEdges`(schema デフォルト 500)を遵守する。
 - **C-S-03**: 親要件定義書 §3「入力検証」で定めた入力サイズ上限(現状 `MAX_CODE_SIZE=50KB`)を本改修でも遵守する。Express の `express.json()` の `limit` は **`MAX_CODE_SIZE` 由来の式で導出**(`BODY_LIMIT = MAX_CODE_SIZE × 2 + 16KB`)し、ハードコード値との二重管理を避ける。`{ strict: true }` を併用。
 - **C-S-04**: ユーザー入力 JSON とサーバ既定設定の deep merge は **Prototype Pollution 脆弱性の典型的入口**([CVE-2019-10744](https://security.snyk.io/vuln/SNYK-JS-LODASH-450202) で `lodash.defaultsDeep` が CVSS 9.1、[CVE-2018-16487](https://security.snyk.io/vuln/SNYK-JS-LODASHMERGE-173732) で `lodash.merge` 同様の実績)。`mermaid_config` のマージでは禁止キー `__proto__` / `constructor` / `prototype` を **検出時に該当キーのみ merge 対象から除外し、警告コード `prototype_pollution_attempt` を記録、リクエスト処理は継続**する(REQ-UN-06)。base は `Object.create(null)` で開始。Node.js 起動オプション `NODE_OPTIONS="--disable-proto=delete"` の併用が defense in depth として推奨される(OWASP)。
-- **C-S-05**: Puppeteer/Chromium 上で Mermaid コードを評価する構成は **untrusted JS 評価相当のリスク**を伴う。レンダリング page では Puppeteer の **request interception で外部ネットワーク通信(`http:` / `https:` / `file:`)を遮断**し、`data:` / `about:` / `blob:` のみ allow すること(SSRF / クラウドメタデータエンドポイントへの到達防止)。
+- **C-S-05**: Puppeteer/Chromium 上で Mermaid コードを評価する構成は **untrusted JS 評価相当のリスク**を伴う。レンダリング page では Puppeteer の **request interception で外部ネットワーク通信(`http:` / `https:` / `file:`)を遮断**し、`data:` / `about:` / `blob:` のみ allow すること(SSRF / クラウドメタデータエンドポイントへの到達防止)。例外として、`@mermaid-js/mermaid-cli` パッケージ配下の static asset だけは canonical path の厳密一致で allow してよい。
 - **C-S-06**: BrowserPool 導入により `timeout_ms` はブラウザリソース占有時間に直結する。上限なしの `timeout_ms` 受理は **プール枯渇攻撃の入口**となるため、validator 層で `[MIN_TIMEOUT_MS=1000, MAX_TIMEOUT_MS=30000]` の範囲外を `invalid_request` として拒否する。
 
 ### 2.4 Puppeteer / Chromium 運用上の制約

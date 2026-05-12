@@ -31,7 +31,11 @@ export class MermaidRenderer {
     requestId: string,
     code: string,
     format: 'svg' | 'png',
-    timeoutMs: number
+    timeoutMs: number,
+    options: {
+      mermaidConfigPath?: string
+      puppeteerConfigPath?: string
+    } = {}
   ): Promise<RenderResult> {
     const inputPath = join(TEMP_DIR, `${requestId}.mmd`)
     const outputPath = join(TEMP_DIR, `${requestId}.${format}`)
@@ -50,9 +54,9 @@ export class MermaidRenderer {
         '--backgroundColor',
         'transparent',
         '--configFile',
-        MERMAID_CONFIG_PATH,
+        options.mermaidConfigPath ?? MERMAID_CONFIG_PATH,
         '--puppeteerConfigFile',
-        PUPPETEER_CONFIG_PATH
+        options.puppeteerConfigPath ?? PUPPETEER_CONFIG_PATH
       ]
 
       if (format === 'png') {
