@@ -94,6 +94,18 @@ This matches the earlier investigation's measurement style.
 
 ## Results
 
+### Visual Outputs
+
+The following files were generated from the current API and committed for visual inspection:
+
+| Case | SVG | PNG preview |
+|---|---|---|
+| Case 02 current default | [current-case-02.svg](./svg-node-padding-verification-2026-05-13/current-case-02.svg) | ![Case 02 current default](./svg-node-padding-verification-2026-05-13/current-case-02.png) |
+| Case 10 current default | [current-case-10.svg](./svg-node-padding-verification-2026-05-13/current-case-10.svg) | ![Case 10 current default](./svg-node-padding-verification-2026-05-13/current-case-10.png) |
+| Case 02 wide spacing override | [current-case-02-wide-spacing.svg](./svg-node-padding-verification-2026-05-13/current-case-02-wide-spacing.svg) | SVG only |
+
+The committed SVG files are the best source for checking root attributes such as `width`, `height`, `viewBox`, `max-width`, and `foreignObject` overflow behavior. The PNG previews are included for quick visual inspection in GitHub or a local Markdown viewer.
+
 ### Case 02 - baseline vs current
 
 | Metric | Previous investigation output | Current output |
@@ -187,4 +199,3 @@ If the product requirement is strictly "reduce blank space inside each node", th
 3. Provide a documented opt-in style preset that changes node appearance without pretending to alter Mermaid's internal layout model.
 
 Option 2 is the most direct, but it is also the riskiest because it must preserve edges, marker alignment, labels, non-rect node shapes, and accessibility attributes.
-
