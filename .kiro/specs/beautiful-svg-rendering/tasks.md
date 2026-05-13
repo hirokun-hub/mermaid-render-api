@@ -4,7 +4,7 @@
 
 ### 0.1 目的
 
-`requirements.md` / `design.md` を MVP として実装するための作業手順。各タスクは設計書 §12 実装フェーズ(P-01〜P-15)を機能ブロック単位に束ねた **7 タスク(Phase 0〜Phase 6)** で構成する。
+`requirements.md` / `design.md` を MVP として実装するための作業手順。各タスクは設計書 §13 実装フェーズ(P-01〜P-15 + Phase 4.5)を機能ブロック単位に束ねた **8 タスク(Phase 0〜Phase 6、Phase 4.5 を含む)** で構成する。
 
 ### 0.2 開発方針
 
@@ -25,6 +25,8 @@
      Phase 1 Phase 2 Phase 3     ← 並行可能(Phase 0 完了後)
        \  |  /
         Phase 4 (統合)
+         |
+        Phase 4.5 (依存脆弱性修復)
          |
         Phase 5 (テスト集約)
          |
@@ -47,8 +49,9 @@
 | **Phase 1** | レンダリング層(BrowserPool + Adapter 実装) | P-04 | 6, 7, 16 | Phase 0 |
 | **Phase 2** | 入力 / エラー層(validator + errorResponse) | P-05, P-06 | 5, 9, 11, 13(part), 14, 15 | Phase 0 |
 | **Phase 3** | 観測 / レート制御層(observability + rateLimiter) | P-07, P-08 | 13, 17 | Phase 0 |
-| **Phase 4** | サーバ統合 + 依存更新 + Docker | P-09, P-10, P-11 | 1, 2, 4, 7, 10, 16 | Phase 1, Phase 2, Phase 3 |
-| **Phase 5** | テスト集約(property 17 個 + integration) | P-12 | 1〜17 | Phase 4 |
+| **Phase 4** | サーバ統合 + Docker | P-09, P-10, P-11 | 1, 2, 4, 7, 10, 16 | Phase 1, Phase 2, Phase 3 |
+| **Phase 4.5** | Security dependency remediation | design.md §9 | REQ-D-01〜09 | Phase 4 |
+| **Phase 5** | テスト集約(property 17 個 + integration) | P-12 | 1〜17 | Phase 4.5 |
 | **Phase 6** | デプロイ + 性能計測(blue/green + NFR-01) | P-13, P-14, P-15 | NFR-01 達成判定 | Phase 5 |
 
 ---
@@ -355,7 +358,7 @@
 
 ---
 
-## 5. Phase 4 サーバ統合 / 依存更新 / Docker
+## 5. Phase 4 サーバ統合 / Docker
 
 **Validates:** REQ-U-02, REQ-U-07, REQ-U-08, REQ-S-01, NFR-02, NFR-03, NFR-06, C-M-07, C-M-10, C-P-03, C-S-04
 **PROP:** 1, 2, 4, 7, 10, 16
@@ -423,11 +426,93 @@
 
 ---
 
-## 6. Phase 5 テスト集約
+## 6. Phase 4.5 Security dependency remediation
+
+**Validates:** REQ-D-01, REQ-D-02, REQ-D-03, REQ-D-04, REQ-D-05, REQ-D-06, REQ-D-07, REQ-D-08, REQ-D-09, NFR-02, C-D-01, C-D-02, C-D-03, C-D-04, C-D-05, C-D-06, C-D-07, C-D-08, C-D-09
+**PROP:** —(security dependency gate / regression)
+**依存:** Phase 4 完了
+
+### E5-1 現状固定と audit 経路記録
+
+- [x] `npm ci` 成功を確認し、Phase 4 lockfile の再現性を確認
+- [x] `npm run build` 成功を確認
+- [x] `npm test` 成功を確認し、既存 test 数を記録(Phase 4 完了時点: 100 tests / 26 files)
+- [x] `npm audit --omit=dev` を実行し、production dependency の critical / high / moderate / low 件数を記録(Phase 4 完了時点: critical 1 / high 4 / moderate 8 / low 1)
+- [x] `npm ls basic-ftp dompurify lodash lodash-es path-to-regexp qs postcss picomatch uuid ip-address @mermaid-js/mermaid-cli mermaid puppeteer` で vulnerable package の経路を記録(`docs/dependency-overrides.md` に記載)
+- [x] audit 前後の差分をレビューできるよう、更新対象 package と advisory URL を作業メモまたは commit message に残す(`docs/dependency-overrides.md` に記載)
+
+### E5-2 Mermaid CLI / Puppeteer version set 更新
+
+- [x] `@mermaid-js/mermaid-cli` の更新先を npm registry metadata で確認し、bundled `mermaid` version と `puppeteer` peerDependency を記録(C-M-10 / C-D-09)(更新先: 11.14.0、bundled mermaid: ^11.14.0 → 11.15.0 解決、peerDep: puppeteer ^23 || ^24)
+- [x] `@mermaid-js/mermaid-cli` を known advisory 解消に必要な安定版へ exact pin で更新(NFR-02 / C-D-09)(11.12.0 → 11.14.0)
+- [x] Puppeteer は Mermaid CLI peerDependency と Docker sandbox 互換を優先し、major 更新を避けられる場合は 23 系 patch または transitive remediation を優先(23.11.1 を維持)
+- [x] `npm install --save-exact` または同等の lockfile 更新手順で `package.json` / `package-lock.json` を同期
+- [x] `npm ls @mermaid-js/mermaid-cli mermaid puppeteer` で version set が設計意図どおりであることを確認
+
+### E5-3 `overrides` による transitive dependency 修復
+
+- [x] audit に残る production critical/high を package ごとに分類し、上位 package 更新で解消済みか確認
+- [x] 上位更新で解消しない `basic-ftp` / `path-to-regexp` / `qs` / `postcss` / `picomatch` / `ip-address` 等は、必要最小限の exact `overrides` で修正(C-D-05 / C-D-06 / C-D-08)(basic-ftp, lodash, lodash-es, path-to-regexp, picomatch スコープ override を追加)
+- [x] Mermaid / DOMPurify / parser 系 advisory が残る場合のみ、`dompurify` 等の scoped override を検討(C-D-04 / C-D-09)(dompurify: 3.4.2 override 追加)
+- [x] `overrides` を追加した package ごとに advisory URL、追加理由、想定影響範囲、解除条件、再評価期限を `design.md` または専用ドキュメントに記録(C-D-08)(`docs/dependency-overrides.md` に記録済み)
+- [x] `npm ls <override対象>` で実際に修正版へ解決されていることを確認
+
+### E5-4 [TDD] security regression test 追加
+
+- [x] [TDD] `securityLevel` / `maxTextSize` / `maxEdges` / `startOnLoad` override が依存更新後も無効化され、警告 `locked_setting_override_ignored` が記録される(REQ-D-04)
+- [x] [TDD] `__proto__` / `constructor` / `prototype` payload 後も `Object.prototype` が汚染されない(REQ-D-05)
+- [x] [TDD] Puppeteer request interception が外部 `http:` / `https:` / 許可外 `file:` を block する(REQ-D-06)(`classifyRequest()` unit test + `RENDERER_MODE=programmatic` integration test で検証)
+- [x] [TDD] 構文エラー入力で Mermaid の Syntax error SVG を返さず、JSON error response に正規化される既存挙動を維持
+
+### E5-5 [TDD] SVG structural safety / diagram regression 追加
+
+- [x] [TDD] SVG 出力に `<script>`、`on*=` イベント属性、`javascript:` URI が混入しない(REQ-D-07)
+- [x] [TDD] SVG 出力に想定外の外部 `http:` / `https:` / `file:` 参照が混入しない(REQ-D-07)(`src` / `href` / `xlink:href` / CSS `url()` を検査)
+- [x] [TDD] flowchart / sequence / class / state / gantt / er / pie / mindmap の SVG レンダリングが成功する(REQ-D-08)
+- [x] [TDD] flowchart / sequence の PNG レンダリング smoke が成功する(REQ-D-08)
+- [x] [TDD] `RENDERER_MODE=cli` で代表図種の CLI fallback が成功する(C-D-07 / C-D-09)
+
+### E5-6 build / test / Docker / render smoke 受入確認
+
+- [x] `npm ci` 成功
+- [x] `npm run build` 成功
+- [x] `npm test` 成功、既存 test 数が意図なく減っていない(100 → 140 に増加)
+- [x] `npm audit --omit=dev --audit-level=high` 成功(REQ-D-01 / REQ-D-02)
+- [x] Mermaid / DOMPurify / SVG sanitizer 系 XSS advisory が production tree に残っていない、または上流未修正として risk acceptance が記録済み(REQ-D-03)(dompurify: 3.4.2 override で解消済み)
+- [x] `docker compose build` 成功
+- [x] Docker Desktop dev overlay 起動後に `/livez` / `/readyz` / `/healthz` が 200
+- [x] Docker Desktop dev overlay 起動後に `/render` SVG / PNG smoke が 200
+- [x] 残存 moderate/low advisory がある場合、CVE/advisory、実行到達性、リスク受容理由、owner、再評価期限を記録(REQ-D-09)(`docs/dependency-overrides.md` §3 に記録済み)
+
+### Phase 4.5 受入基準
+
+- [x] `npm audit --omit=dev --audit-level=high` が pass
+- [x] production dependency の known critical/high advisory が 0
+- [x] Mermaid / DOMPurify / SVG sanitizer 系 XSS advisory が 0、または上流未修正の risk acceptance が記録済み
+- [x] locked settings / prototype pollution / request interception / SVG structural safety / diagram regression が green
+- [x] `npm ci`、`npm run build`、`npm test`、`docker compose build`、Docker Desktop dev overlay render smoke が green
+- [x] `overrides` が残る場合、対象 package ごとの advisory / 理由 / 解除条件 / 再評価期限が記録済み
+
+### Phase 4.5 対象ファイル
+
+| 種別 | パス |
+|---|---|
+| 拡張 | `package.json` |
+| 同期 | `package-lock.json` |
+| 拡張 | `design.md` または新規 `docs/dependency-overrides.md` |
+| 新規/拡張 | `test/security/*.test.ts` |
+| 新規/拡張 | `test/render/*.test.ts` |
+| 拡張 | `test/integration/renderModeCli.test.ts` |
+| 新規 | `test/unit/requestPolicy.test.ts` |
+| 新規 | `test/integration/requestInterception.test.ts` |
+
+---
+
+## 7. Phase 5 テスト集約
 
 **Validates:** PROP-1〜17 全
 **PROP:** 1〜17(集約と漏れ補完)
-**依存:** Phase 4 完了
+**依存:** Phase 4.5 完了
 
 ### F-1 property test 整理(P-12)
 
@@ -490,7 +575,7 @@
 
 ---
 
-## 7. Phase 6 デプロイ + 性能計測(blue/green)
+## 8. Phase 6 デプロイ + 性能計測(blue/green)
 
 **Validates:** NFR-01, NFR-03
 **PROP:** —(性能達成判定)
@@ -564,21 +649,21 @@
 
 ---
 
-## 8. Out of Scope(将来別票)
+## 9. Out of Scope(将来別票)
 
 - 複数 SVG 同一ページ embed 用の ID 全 rewrite(要件定義書 §8 参照)
 - ELK レンダラのデフォルト化(C-M-04 既知不具合解消待ち)
 - htmlLabels=false の v11.11+ 既知バグ追跡(Watch のみ、`BEAUTIFUL_DEFAULTS` で `htmlLabels: true` 固定)
-- Mermaid バージョン更新(NFR-02 手順で別途実施)
+- Mermaid バージョン更新(NFR-02 手順で別途実施。ただし Phase 4.5 の security dependency remediation に必要な exact pin 更新は対象)
 - エラーメッセージ日本語化(MVP 後)
 
-## 9. 検証(tasks.md 自身の整合性)
+## 10. 検証(tasks.md 自身の整合性)
 
 実装着手前に以下を機械的に確認する:
 
-1. **REQ 網羅性**: `grep -oE 'REQ-[A-Z]+-[0-9]+' .kiro/specs/beautiful-svg-rendering/tasks.md | sort -u` の結果数が requirements.md の REQ-* 24 と一致
+1. **REQ 網羅性**: `grep -oE 'REQ-[A-Z]+-[0-9]+' .kiro/specs/beautiful-svg-rendering/tasks.md | sort -u` の結果数が requirements.md の REQ-* と一致
 2. **NFR 網羅性**: `grep -c 'NFR-0[1-6]' .kiro/specs/beautiful-svg-rendering/tasks.md` で 6 系列全て出現
 3. **PROP 網羅性**: `grep -oE 'PROP-[0-9]+' .kiro/specs/beautiful-svg-rendering/tasks.md | sort -u | wc -l` が 17
 4. **C-* 網羅性**: 主要 C-S-* / C-P-* / C-M-* が tasks.md 内に出現(セキュリティ・運用前提として実装担保される)
 5. **TDD タグ妥当性**: `[TDD]` 付き行が「複雑ロジック / セキュリティ / 並行制御」のみで、配線系には付いていないことを目視
-6. **依存閉路なし**: Phase 0 → {Phase 1, Phase 2, Phase 3} → Phase 4 → Phase 5 → Phase 6 の DAG
+6. **依存閉路なし**: Phase 0 → {Phase 1, Phase 2, Phase 3} → Phase 4 → Phase 4.5 → Phase 5 → Phase 6 の DAG

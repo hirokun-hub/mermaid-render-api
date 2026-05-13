@@ -24,6 +24,7 @@
 - 定量調査: `docs/svg-padding-investigation/REPORT.md`
 - 専門家レビュー: `docs/expert-reviews/2026-05-10_mermaid-svg-rendering-best-practices.md`
 - 専門家レビュー: `docs/expert-reviews/2026-05-13_docker-chromium-sandbox-container-best-practices.md`
+- 専門家レビュー: `docs/expert-reviews/2026-05-13_dependency-vulnerability-remediation-best-practices.md`
 - 設計書: `design.md`(本ディレクトリ)
 
 ### 1.4 用語集
@@ -54,13 +55,13 @@
   - [#7015](https://github.com/mermaid-js/mermaid/issues/7015) エンティティコード(`#quot;` 等)が無効化される
   - [#7016](https://github.com/mermaid-js/mermaid/issues/7016) 特殊文字(`<`,`>`,`\*`)の処理破綻
   - [#1177](https://github.com/mermaid-js/mermaid/issues/1177) 複数行ラベルの水平中央寄せ失敗
-- **C-M-04**: ELK レイアウトエンジン(`layout: elk`)は v11 では `@mermaid-js/layout-elk` 別パッケージだが、本リポジトリの `@mermaid-js/mermaid-cli`(**現状 `^11.12` 表記、本改修で NFR-02 により `11.12.0` exact pin に変更**)は bundle 済のため追加導入不要。一方で title 消失([#4813](https://github.com/mermaid-js/mermaid/issues/4813))・empty subgraph クラッシュ([#5402](https://github.com/mermaid-js/mermaid/issues/5402))の既知不具合があり、デフォルト採用してはならない。
+- **C-M-04**: ELK レイアウトエンジン(`layout: elk`)は v11 では `@mermaid-js/layout-elk` 別パッケージだが、本リポジトリの Phase 4 baseline `@mermaid-js/mermaid-cli`(`11.12.0` exact pin)は bundle 済のため追加導入不要。一方で title 消失([#4813](https://github.com/mermaid-js/mermaid/issues/4813))・empty subgraph クラッシュ([#5402](https://github.com/mermaid-js/mermaid/issues/5402))の既知不具合があり、デフォルト採用してはならない。Phase 4.5 でセキュリティ修復目的の exact pin 更新を行う場合も、ELK のデフォルト採用禁止は維持する。
 - **C-M-05**: `mmdc` CLI には設定 JSON を inline で渡すフラグが存在しない(`-c, --configFile <path>` のみ)。設定変更は **ファイル経由** か、Programmatic_API を用いてオブジェクト直渡しのいずれか。
 - **C-M-06**: Mermaid のパースエラー stderr に出る「`Parse error on line N:`」の `N` には [#3853](https://github.com/mermaid-js/mermaid/issues/3853) で long-open の行番号ずれバグがある。エラー応答で行番号を扱う場合は「N 行目付近」相当の曖昧度を残してよい。
 - **C-M-07**: `@mermaid-js/mermaid-cli` の **Programmatic_API は semver 対象外**(README 明記)。依存バージョン pinning と移行検証手段を持つこと。
 - **C-M-08**: `@mermaid-js/mermaid-cli` の Node.js API は **v11.3.0 (2024-11-01)** で `renderMermaid` 戻り値 `data: Buffer → Uint8Array` の破壊的変更を行った実績がある([PR #767](https://github.com/mermaid-js/mermaid-cli/pull/767))。バージョン更新時は API 形状の互換確認を必須とし、依存は **exact pin** で管理する。
-- **C-M-09**: Mermaid 本体 **v11.13.0 (2026-03-09)** でプレーンテキストラベルの自動 Markdown 解釈が v10 互換へ巻き戻された。SVG **出力の見た目が変わる**種類の変更が minor リリースで発生し得るため、依存更新 PR では画像差分(`pixelmatch` 等)による視覚回帰検証を必須とする。
-- **C-M-10**: `@mermaid-js/mermaid-cli` の peerDependency は `puppeteer ^23`(2026-05 時点)。Puppeteer 側のバージョンも同期管理対象とする。
+- **C-M-09**: Mermaid 本体 **v11.13.0 (2026-03-09)** でプレーンテキストラベルの自動 Markdown 解釈が v10 互換へ巻き戻された。SVG **出力の見た目が変わる**種類の変更が minor リリースで発生し得るため、通常の依存更新 PR では画像差分(`pixelmatch` 等)による視覚回帰検証を必須とする。Phase 4.5 MVP では NFR-02 の例外条件に従い、SVG structural safety と主要 diagram regression を必須、PNG pixel diff は production rollout 前の推奨検証として扱ってよい。
+- **C-M-10**: Phase 4 baseline の `@mermaid-js/mermaid-cli` peerDependency は `puppeteer ^23`(2026-05 時点)。Phase 4.5 で `@mermaid-js/mermaid-cli` を更新する場合は、更新先 package metadata の peerDependency を確認し、Puppeteer 側の version set も同期管理対象とする。
 
 ### 2.2 配布 HTML 埋込用途の制約
 
@@ -90,6 +91,30 @@
 - **C-P-09**: `cap_add: SYS_ADMIN` は Puppeteer 公式 Docker image で sandbox mode 用に案内されるが、本 API の本番標準構成として採用してはならない。使用する場合は Docker Desktop 等の開発環境の暫定回避、または隔離済み renderer worker の最後の手段に限定し、`cap_drop: ALL` / read-only filesystem / tmpfs / PID・メモリ制限 / egress 制限を併用する。根拠: [Puppeteer Docker guide](https://pptr.dev/guides/docker), [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html)。
 - **C-P-10**: `security_opt: no-new-privileges:true` は一般的な container hardening として有効だが、Debian `chromium-sandbox` の SUID helper と衝突し得る。SUID sandbox helper を使う構成では無条件に有効化せず、namespace sandbox / custom seccomp 構成で両立を実測確認してから採用する。
 - **C-P-11**: 本番コンテナでは least privilege を前提とし、read-only root filesystem、書込先を `/tmp` / browser cache 用 tmpfs に限定、`cap_drop: ALL`、`pids_limit`、メモリ/CPU制限、Docker socket 非マウント、egress deny/allowlist を標準候補とする。根拠: [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html), [Docker Compose service reference](https://docs.docker.com/reference/compose-file/services/)。
+
+### 2.5 依存脆弱性対応の制約
+
+- **C-D-01**: production dependency の脆弱性対応は Phase 4 の Docker/API 統合作業と混ぜず、Phase 4.5 `Security dependency remediation` として独立させる。Mermaid/parser/sanitizer/Puppeteer/Express 推移依存の更新はレンダリング互換性とセキュリティ境界を変えるため、rollback と原因切り分けの単位を分ける。根拠: `docs/expert-reviews/2026-05-13_dependency-vulnerability-remediation-best-practices.md`。
+- **C-D-02**: `npm audit fix --omit=dev` を無検証で一括適用してはならない。npm 公式は `audit fix` が install 相当の remediations を適用し、手動確認が必要な脆弱性もあると説明している。依存更新は direct dependency の exact pin 更新を優先し、必要最小限の `overrides` は advisory / 理由 / 解除条件を設計書または専用ドキュメントに記録する。根拠: [npm audit](https://docs.npmjs.com/cli/v11/commands/npm-audit/), [npm overrides](https://docs.npmjs.com/cli/v11/configuring-npm/package-json#overrides)。
+- **C-D-03**: Phase 4.5 MVP の依存セキュリティ基準は `npm audit --omit=dev --audit-level=high` が pass すること、すなわち production dependency の critical / high を 0 にすること。moderate / low を残す場合は exploit 経路、リスク受容理由、owner、再評価期限、解除条件を記録する。
+- **C-D-04**: 本 API は untrusted Mermaid 入力を Chromium で SVG/PNG に変換し、返却 SVG が inline embed され得るため、Mermaid / DOMPurify / SVG sanitizer 系の XSS advisory は npm 表示上 moderate でも高優先度として扱う。DOMPurify CVE-2026-41238 は `>=3.0.1 <3.4.0` が対象で `3.4.0` で修正、Mermaid CVE-2025-54881 / CVE-2025-54880 は Mermaid `11.10.0` 以上で修正されている。根拠: [DOMPurify CVE-2026-41238](https://advisories.gitlab.com/npm/dompurify/CVE-2026-41238/), [Mermaid CVE-2025-54881](https://advisories.gitlab.com/npm/mermaid/CVE-2025-54881/), [Mermaid CVE-2025-54880](https://advisories.gitlab.com/npm/mermaid/CVE-2025-54880/)。
+- **C-D-05**: `basic-ftp` は Puppeteer の browser download 系推移依存であり、本番では `PUPPETEER_SKIP_DOWNLOAD=true` と Debian `chromium` により実行到達性は低いが、CVE-2026-27699 は critical で `5.2.0` 以上が修正版のため production dependency tree に残してはならない。上位更新で解消しない場合は scoped override を検討する。根拠: [basic-ftp CVE-2026-27699](https://advisories.gitlab.com/npm/basic-ftp/CVE-2026-27699/)。
+- **C-D-06**: Express の `path-to-regexp` ReDoS advisory は複雑な route pattern が主条件であり、本 API の固定 route (`/render`, `/healthz`, `/livez`, `/readyz`, `/metrics`) では実リスクは相対的に低い。ただし Express 公式は security release として `path-to-regexp` 更新を推奨しているため、production high advisory を残さない。根拠: [Express March 2026 Security Releases](https://expressjs.com/2026/03/30/security-releases.html)。
+- **C-D-07**: Phase 4.5 の受入では `npm ci`、`npm run build`、`npm test`、Docker build、Docker Desktop dev overlay smoke、SVG/PNG render smoke に加え、locked settings、prototype pollution、request interception、SVG structural safety(`script` / `on*` / `javascript:` / 想定外外部参照なし)、主要 diagram type regression を必須検証とする。
+- **C-D-08**: Phase 4.5 で `overrides` を追加する場合、対象 package、advisory URL、追加理由、影響範囲、解除条件、再評価期限を `design.md` または専用ドキュメントに記録しなければならない。上位 package 更新で同等以上の修正版に到達した場合は override を削除候補とする。
+- **C-D-09**: Phase 4.5 の Mermaid 系更新では `@mermaid-js/mermaid-cli` の direct dependency 更新を第一候補とし、`mermaid` / `@mermaid-js/parser` / `dompurify` の個別 override は上位更新で advisory が残る場合の第二候補とする。Programmatic API は semver 対象外のため、更新後に import path、戻り値形状、error shape、CLI fallback の互換性を検証する。
+
+### 2.6 Phase 4.5 MVP 要件
+
+- **REQ-D-01**: THE System SHALL Phase 4.5 完了時点で `npm audit --omit=dev --audit-level=high` に成功する。
+- **REQ-D-02**: THE System SHALL Phase 4.5 完了時点で production dependency tree に known critical/high advisory を残さない。
+- **REQ-D-03**: THE System SHALL Phase 4.5 完了時点で Mermaid / DOMPurify / SVG sanitizer 系 XSS advisory を残さない。ただし上流未修正で残す場合は exploit 経路、暫定緩和策、解除条件、再評価期限を risk acceptance として記録しなければならない。
+- **REQ-D-04**: THE System SHALL 依存更新後も `securityLevel` / `maxTextSize` / `maxEdges` / `startOnLoad` の Server_Locked_Setting をリクエストから上書きできない。
+- **REQ-D-05**: THE System SHALL 依存更新後も `__proto__` / `constructor` / `prototype` payload によって `Object.prototype` が汚染されない。
+- **REQ-D-06**: THE System SHALL 依存更新後も Puppeteer request interception により外部 `http:` / `https:` / 許可外 `file:` 参照を遮断する。
+- **REQ-D-07**: THE System SHALL 依存更新後の SVG 出力に `<script>`、`on*=` イベント属性、`javascript:` URI、想定外の外部 URL / file 参照が含まれないことを検証する。
+- **REQ-D-08**: THE System SHALL 依存更新後も主要 Mermaid diagram type の SVG レンダリングと PNG レンダリングが成功することを検証する。
+- **REQ-D-09**: THE System SHOULD 残存 moderate/low advisory がある場合、GitHub issue または設計ドキュメントに CVE/advisory、実行到達性、リスク受容理由、owner、再評価期限を記録する。
 
 ## 3. ユーザーストーリーと要件
 
@@ -407,6 +432,8 @@ THE System SHALL 単純な flowchart(ノード 5 個以下)のレンダリング
 
 THE System SHALL `@mermaid-js/mermaid-cli` を **caret や tilde を付けない exact version**(例: `11.12.0`)で `package.json` に固定し、`package-lock.json` をリポジトリにコミットし、CI は `npm ci` を使用する。依存更新は Renovate / Dependabot に **自動マージを許可せず**、更新 PR では **画像差分(`pixelmatch` 等)+ property test + 性能ベンチ** の通過を必須要件とする。`puppeteer` の peerDependency バージョンも同様に同期管理する(C-M-10)。根拠: C-M-07 / C-M-08 / C-M-09 / C-M-10。
 
+Phase 4.5 の security dependency remediation に限り、MVP 受入では `npm audit --omit=dev --audit-level=high`、SVG structural safety、主要 diagram regression、既存 property/security test、Docker/render smoke を必須とし、PNG pixel diff と詳細性能ベンチは production rollout 前の推奨検証として扱ってよい。ただし Mermaid の描画差分が大きい、または production rollout を同一 PR で行う場合は、画像差分と性能ベンチも必須に戻す。
+
 ### NFR-03: 段階的デプロイ
 
 THE System SHALL 現行本番 Docker コンテナを稼働させたままテスト用 Docker コンテナで検証可能な状態を提供する。詳細手順は `design.md` のデプロイ戦略を参照。
@@ -428,7 +455,7 @@ THE System SHALL Programmatic API 実装の障害時に、環境変数 `RENDERER
 - **同一ページ複数 SVG embed の ID 衝突完全対応**: 軽量 ID 一意化(設計書 §7)のみ実装する。SVG 内部 ID(`<marker>`, `<clipPath>` 等)の完全 rewrite は別票。
 - **ELK レイアウトのデフォルト採用**: 既知不具合(C-M-04)が解消された時点で再評価。
 - **`htmlLabels: false` のサポート強化**: v11.11+ の既知バグ(C-M-03)が修正されるまでオプトインのまま。
-- **Mermaid バージョンアップ**: 本改修では現行バージョン系統を使用(NFR-02)。
+- **Mermaid バージョンアップ**: 本改修では Phase 4 baseline として現行バージョン系統を使用(NFR-02)。ただし Phase 4.5 の security dependency remediation では、known advisory 解消に必要な範囲に限り `@mermaid-js/mermaid-cli` / Mermaid 系依存の exact pin 更新を例外的に対象とする(C-D-09)。
 - **エラーメッセージの日本語化**: AI 自己修復・GitHub Issue 照合のために英語原文を保持。日本語化は将来検討。
 - **Web フォント同梱・font subsetting**: 配布物の肥大化トレードオフが大きく別票。
 - **キャッシュ・非同期ジョブ・大規模スケール**: 親要件定義書の Out of Scope を継承。

@@ -110,7 +110,7 @@ sequenceDiagram
 
 - **Programmatic_API 採用** ← C-M-05(`mmdc` に inline config 渡しフラグが無く、リクエスト毎の設定差替えに毎回ファイル書出しが必要)+ NFR-01(レイテンシ目標) + REQ-U-08(Browser_Pool 常駐) を同時に解決するため。
 - **Browser_Pool** ← Puppeteer/Chromium 起動が支配的コストで、リクエスト間で共有可能(`renderMermaid(Browser | BrowserContext, ...)` のシグネチャ、C-M-08 PR #768)。本改修では BrowserContext 単位で pool を構成し、context recycle で長時間稼働時のメモリリークを防ぐ。
-- **semver 対象外リスク(C-M-07 / C-M-08 / C-M-09)** ← NFR-02 で `@mermaid-js/mermaid-cli` を **`11.12.0` 等の exact version で pin**(caret / tilde 不可)+ `package-lock.json` コミット + `npm ci`。Renovate 手動承認、更新 PR で画像差分テスト + property test + 性能ベンチ必須。テスト用 Docker で先行検証(NFR-03)してから本番差替えで吸収。緊急時は `RENDERER_MODE=cli` フォールバック(NFR-06)。
+- **semver 対象外リスク(C-M-07 / C-M-08 / C-M-09)** ← NFR-02 で `@mermaid-js/mermaid-cli` を **exact version で pin**(Phase 4 baseline は `11.12.0`、Phase 4.5 では security remediation 目的に限り更新可)+ `package-lock.json` コミット + `npm ci`。Renovate 手動承認、通常の更新 PR では画像差分テスト + property test + 性能ベンチ必須。Phase 4.5 MVP では audit high gate、SVG structural safety、diagram regression、既存 property/security test を必須にし、PNG pixel diff と詳細性能ベンチは production rollout 前の推奨検証として扱う。テスト用 Docker で先行検証(NFR-03)してから本番差替えで吸収。緊急時は `RENDERER_MODE=cli` フォールバック(NFR-06)。
 - **`htmlLabels: true` 維持** ← C-M-03 で v11.11+ に複数 Approved Bug が open。`themeCSS` の `foreignObject overflow visible` で代替対応(G-2)。
 
 ## 3. コンポーネント設計
@@ -273,20 +273,20 @@ class BrowserPool {
 }
 ```
 
-**Request interception(C-S-05)**: BrowserContext 生成直後の hook で、`renderMermaid` が内部で生成する全 page に対して interception を有効化する(`browser.on('targetcreated')` で context 配下の page 作成を捕捉して適用、または `ctx.overridePermissions(...)` と合わせて context レベルで net request を deny)。実装は以下と等価:
+**Request interception(C-S-05)**: BrowserContext 生成直後に `context.newPage()` を patch し、`renderMermaid` が内部で生成する全 page に対して interception を有効化する。URL 判定は `classifyRequest(rawUrl): 'intercept' | 'allow' | 'block'` に分離し、unit test で `http:` / `https:` / 許可外 `file:` の block、`data:` / `about:` / `blob:` と `@mermaid-js/mermaid-cli` package 配下 file asset の allow、mermaid-cli 11.14.0+ の pseudo-HTTPS origin の intercept 境界を検証する。実装は以下と等価:
 ```ts
-context.on('page', async (page) => {
+const originalNewPage = context.newPage.bind(context)
+context.newPage = async () => {
+  const page = await originalNewPage()
   await page.setRequestInterception(true)
   page.on('request', req => {
-    const url = req.url()
-    if (url.startsWith('data:') || url.startsWith('about:') || url.startsWith('blob:')) {
-      return req.continue()
-    }
-    // 例外: @mermaid-js/mermaid-cli パッケージ配下の static asset のみ
-    // canonical path を realpath + startsWith で厳密判定して req.continue() する
+    const action = classifyRequest(req.url())
+    if (action === 'intercept') return
+    if (action === 'allow') return req.continue()
     return req.abort()  // http/https と上記例外外の file を遮断(SSRF 対策)
   })
-})
+  return page
+}
 ```
 
 **HTTP 層 RateLimiter との分離(REQ-S-03)**: BrowserPool の上位に `src/limiter/rateLimiter.ts` を独立配置。HTTP 層は `RATE_LIMIT_MAX_INFLIGHT` 超で **即時 429**(`Retry-After` 付与)。BrowserPool は `POOL_QUEUE_MAX` 内なら wait、超過/timeout で **503**(`Retry-After` 付与)。
@@ -380,7 +380,7 @@ class WarningCollector {
 ### 3.4 `src/server/app.ts` の拡張
 
 - リクエスト boundary でバリデータから返る `RenderInput` を `MermaidRenderer.render()` に渡す
-- レスポンス失敗時 JSON 組立に `error_message` / `line` / `error_field` / `error_constraint` の 4 フィールドを追加(`errorResponse.ts` の `buildErrorResponse()` に委譲、§13)
+- レスポンス失敗時 JSON 組立に `error_message` / `line` / `error_field` / `error_constraint` の 4 フィールドを追加(`errorResponse.ts` の `buildErrorResponse()` に委譲、§14)
 - `Content-Type` 解決は `CONTENT_TYPE_MAP`(§3.1)を参照
 - Browser_Pool 未初期化検知時に 503 + `error_type=service_unavailable` を返却(REQ-S-01)
 
@@ -571,7 +571,7 @@ interface RenderContext {
 | **PROP-16** | `RENDERER_MODE=cli` で起動 → `mmdc` subprocess 経由でレンダリングが成功する(レイテンシは劣化、機能は等価) | NFR-06 |
 | **PROP-17** | `/metrics` を GET → Prometheus 形式で必須メトリクス 8 系統が含まれる | NFR-05 |
 
-各プロパティは `test/property/*.property.test.ts` に fast-check ベースで実装する(§9)。
+各プロパティは `test/property/*.property.test.ts` に fast-check ベースで実装する(§10)。
 
 ## 6. エラーハンドリング
 
@@ -767,9 +767,69 @@ flowchart TD
 - prod 切替後、`/healthz` と `POST /render`(最小サンプル)の疎通を自動チェック
 - 異常時は即時 rollback
 
-## 9. テスト戦略(AI 駆動・自動中心)
+## 9. Phase 4.5 依存脆弱性修復設計
 
-### 9.1 既存テストの継承
+Phase 4.5 は Phase 4 の Docker/API 統合成果を固定した後、Phase 5 のテスト集約へ進む前に実施する。目的は production dependency の critical/high advisory を解消し、Mermaid / DOMPurify / SVG sanitizer 系の XSS リスクを閉じること。`npm audit fix --omit=dev` の一括適用は禁止し、上位 package 更新と必要最小限の `overrides` で段階的に進める。
+
+### 9.1 更新順序
+
+1. baseline 取得: `npm ci`、`npm run build`、`npm test`、`npm audit --omit=dev --json`、`npm ls` で vulnerable package の経路を記録する。
+2. Mermaid 系 direct dependency 更新: `@mermaid-js/mermaid-cli` を known advisory 解消に必要な安定版へ exact pin で更新する。Phase 4 baseline は `11.12.0` だが、2026-05-13 時点の Phase 4.5 候補は `11.14.0` とする。実装時は npm registry の package metadata で bundled `mermaid` version と `puppeteer` peerDependency を再確認し、設計上の version set を固定してから lockfile を更新する。
+3. Puppeteer 判断: Phase 4.5 MVP では Mermaid CLI peer と Docker sandbox 互換を優先し、Puppeteer major 更新は原則行わない。23 系の patch 更新または transitive override で解消できるものを優先する。
+4. transitive dependency 修復: audit に残る critical/high を `overrides` で個別に解消する。第一候補は `basic-ftp`、`path-to-regexp`、`qs`、`postcss`、`picomatch`、`ip-address`。Mermaid sanitizer 系が残る場合のみ `dompurify` 等の scoped override を検討する。
+5. moderate/low 評価: `npm audit --omit=dev --audit-level=high` が pass した後、残存 moderate/low は exploit 経路、到達性、緩和策、解除条件を risk acceptance として記録する。
+
+### 9.2 `overrides` 運用ルール
+
+`overrides` は root `package.json` のみに定義し、すべて exact version で固定する。追加時は次を `design.md` 追記または専用ドキュメントに記録する:
+
+- 対象 package と固定 version
+- 対応 advisory / CVE URL
+- 追加理由(上位 package 未追従、または audit critical/high 解消)
+- 想定影響範囲
+- 削除条件(上位 package が修正版へ追従し、override 削除後も audit/test が pass)
+- 再評価期限
+
+上位 package 更新で同等以上の修正版に到達した場合、override は削除候補とする。`package-lock.json` レビューでは、対象 package が意図した version に解決されていること、想定外の package churn がないことを確認する。
+
+### 9.3 Mermaid / Sanitizer 更新境界
+
+Mermaid / DOMPurify / parser 系はレンダリング結果と SVG 安全性に直結する。したがって、`mermaid` / `@mermaid-js/parser` / `dompurify` の個別 override は、`@mermaid-js/mermaid-cli` 更新だけでは advisory が解消しない場合の第二候補とする。採用時は Programmatic API の import path、戻り値 shape、error shape、CLI fallback の互換性を必ず検証する。
+
+### 9.4 Phase 4.5 必須検証
+
+| 区分 | 必須条件 | 関連要件 |
+|---|---|---|
+| install / build | `npm ci`、`npm run build` 成功 | C-D-07 |
+| test | `npm test` 成功。既存 test 数が意図なく減らない | C-D-07 |
+| audit | `npm audit --omit=dev --audit-level=high` 成功 | REQ-D-01, REQ-D-02 |
+| Docker | `docker compose build` 成功、Docker Desktop dev overlay 起動成功 | C-D-07 |
+| health | `/livez`、`/readyz`、`/healthz` が 200 | C-D-07 |
+| render smoke | `/render` SVG / PNG が 200 | C-D-07, REQ-D-08 |
+| locked settings | `securityLevel` / `maxTextSize` / `maxEdges` / `startOnLoad` override が無効化され、警告が記録される | REQ-D-04 |
+| prototype pollution | `__proto__` / `constructor` / `prototype` payload 後も `Object.prototype` が汚染されない | REQ-D-05 |
+| request interception | 外部 `http:` / `https:` / 許可外 `file:` が block される | REQ-D-06 |
+| SVG structural safety | `<script>`、`on*=` 属性、`javascript:` URI、想定外外部 URL / file 参照が混入しない | REQ-D-03, REQ-D-07 |
+| diagram regression | flowchart / sequence / class / state / gantt / er / pie / mindmap 等の主要図種が描画できる | REQ-D-08 |
+
+PNG pixel diff と p50/p95/p99 性能比較は推奨検証とし、MVP では必須にしない。ただし production rollout 前には Phase 4 baseline 比での性能悪化を確認する。
+
+### 9.5 Rollback 方針
+
+Phase 4.5 は Phase 4 commit とは別コミット列にする。依存更新は可能な限り以下の単位で分け、問題発生時に局所 revert できるようにする。
+
+1. docs / tasks 追加
+2. Mermaid CLI 更新
+3. Puppeteer patch 判断
+4. overrides 追加
+5. security / diagram regression test 追加
+6. CI / Docker smoke gate 追加
+
+本番 rollout では Phase 4 image tag を保持し、`/render` の SVG/PNG smoke、error rate、p95 が悪化した場合に即時 rollback する。
+
+## 10. テスト戦略(AI 駆動・自動中心)
+
+### 10.1 既存テストの継承
 
 | 種別 | ディレクトリ | 改修方針 |
 |---|---|---|
@@ -777,7 +837,7 @@ flowchart TD
 | integration | `test/integration/*.test.ts` | 既存 `render.test.ts` を新リクエスト形状で拡張 |
 | property | `test/property/*.property.test.ts` | §5 の PROP-1〜17 を fast-check ベースで追加 |
 
-### 9.2 新規テスト
+### 10.2 新規テスト
 
 - `test/unit/buildRequestMermaidConfig.test.ts`: マージ優先順位(BEAUTIFUL → user → LOCKED)の検証
 - `test/unit/extractMermaidError.test.ts`: 正規表現適用順、行番号抽出
@@ -785,11 +845,11 @@ flowchart TD
 - `test/integration/serverLockedSettings.test.ts`: `securityLevel` override が無視されること
 - `test/property/*.property.test.ts`: PROP-1〜17
 
-### 9.3 視覚的回帰(必要十分の範囲)
+### 10.3 視覚的回帰(必要十分の範囲)
 
 `docs/svg-padding-investigation/cases/*.mmd` の 10 ケースを CI で SVG/PNG として生成し、**生成自体が成功する** ことのみ自動検証(出力バイト一致は要求しない / 人間目視は要求しない)。
 
-### 9.4 性能定量計測
+### 10.4 性能定量計測
 
 `scripts/perf-check.ts` を新規追加:
 
@@ -799,9 +859,9 @@ flowchart TD
 - 結果を JSON で出力 → CI ログに残す
 - before(現行)/after(改修後)で同条件で実行し比較ログを残す(NFR-01 達成判定)
 
-## 10. 開発手法
+## 11. 開発手法
 
-### 10.1 TDD 適用範囲
+### 11.1 TDD 適用範囲
 
 「必要十分に」TDD を適用する箇所:
 
@@ -811,7 +871,7 @@ flowchart TD
 
 それ以外(`server/app.ts` のルーティング配線、`server.ts` のブートストラップ修正等)はテストファースト不要、後追いで integration test を書く。
 
-### 10.2 DRY / 定数局所化の遵守事項
+### 11.2 DRY / 定数局所化の遵守事項
 
 | 対象 | 現状 | 改善後 |
 |---|---|---|
@@ -823,17 +883,19 @@ flowchart TD
 
 実装時にこれらの集約を必ず行う(後付け禁止)。
 
-## 11. リスクと緩和
+## 12. リスクと緩和
 
 | リスク | 由来 | 緩和策 |
 |---|---|---|
-| Programmatic_API が semver 対象外(C-M-07 / C-M-08 / C-M-09) | `@mermaid-js/mermaid-cli` README 明記、過去 12 ヶ月で `renderMermaid` の `Buffer → Uint8Array` 破壊変更実績(v11.3.0 PR #767)、v11.13.0 で出力 SVG の見た目変化 | 依存を **exact pin**(NFR-02)+ Renovate 手動承認 + 画像差分テスト + property test + 性能ベンチを更新 PR 必須化 + `MermaidRendererAdapter` 抽象化(NFR-06)で破壊変更を adapter unit test で即検知、緊急時は `RENDERER_MODE=cli` フォールバック |
+| Programmatic_API が semver 対象外(C-M-07 / C-M-08 / C-M-09) | `@mermaid-js/mermaid-cli` README 明記、過去 12 ヶ月で `renderMermaid` の `Buffer → Uint8Array` 破壊変更実績(v11.3.0 PR #767)、v11.13.0 で出力 SVG の見た目変化 | 依存を **exact pin**(NFR-02)+ Renovate 手動承認 + 通常の更新 PR では画像差分テスト / property test / 性能ベンチを必須化。Phase 4.5 MVP では SVG structural safety / diagram regression / 既存 property・security test を必須化し、`MermaidRendererAdapter` 抽象化(NFR-06)で破壊変更を adapter unit test で即検知、緊急時は `RENDERER_MODE=cli` フォールバック |
 | Mermaid 行番号ずれ([#3853](https://github.com/mermaid-js/mermaid/issues/3853)) | C-M-06 | `line` は参考値として返す。UI 側で「N 行目付近」と表現する責任は呼出側 |
 | `htmlLabels: false` オプトイン利用時の既知バグ(C-M-03) | 利用者が opt-in した場合 | ドキュメントで既知 Issue を明示、デフォルト化はしない(REQ-UN-02) |
 | Browser_Pool の Puppeteer インスタンス障害 | 長時間稼働の Chromium クラッシュ | ヘルスチェック失敗で除外、自動再生成(REQ-S-02) |
 | 同一ページ複数 SVG embed の ID 衝突(C-H-01) | 配布側の利用方法依存 | Out of Scope。`svgId` 一意化のみ実装、将来別票 |
+| 依存脆弱性修復による描画差分 | Mermaid / parser / sanitizer の更新 | Phase 4.5 で主要 diagram regression、SVG structural safety、CLI fallback、Docker smoke を必須化 |
+| `overrides` の長期固定化 | transitive dependency の暫定 pin | advisory / 理由 / 解除条件 / 再評価期限を記録し、上位 package 更新時に削除候補として見直す |
 
-## 12. 実装フェーズ(参考)
+## 13. 実装フェーズ(参考)
 
 詳細は `tasks.md`(別途作成)で扱う。本書では大枠のみ示す。
 
@@ -848,12 +910,13 @@ flowchart TD
 9. `server/server.ts` の固定 config 書き出し廃止、Browser_Pool 起動 + graceful shutdown(SIGTERM)
 10. `package.json` で `@mermaid-js/mermaid-cli` を exact pin(NFR-02)
 11. `Dockerfile` に `tini` + `NODE_OPTIONS="--disable-proto=delete"` 追加(C-P-03 / C-S-04)
-12. property テスト追加(PROP-1〜17)
-13. `docker-compose.yml` に test profile 追加 + `.env.test` 作成
-14. `scripts/perf-check.ts` 新規 + before/after 計測 + p50/p95/p99 + queue 状態
-15. デプロイフロー(§8)実行
+12. Phase 4.5 dependency remediation: Mermaid CLI 更新、必要最小限の overrides、audit high gate、SVG structural safety / diagram regression 追加
+13. property テスト追加(PROP-1〜17)
+14. `docker-compose.yml` に test profile 追加 + `.env.test` 作成
+15. `scripts/perf-check.ts` 新規 + before/after 計測 + p50/p95/p99 + queue 状態
+16. デプロイフロー(§8)実行
 
-## 13. 関連ファイル(変更/新規)
+## 14. 関連ファイル(変更/新規)
 
 | パス | 変更種別 |
 |---|---|

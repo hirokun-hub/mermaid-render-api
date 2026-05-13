@@ -340,21 +340,69 @@ function patchContextNewPage(context: BrowserContext): void {
   patchedContext.__mermaidRenderPatched = true
 }
 
+/**
+ * Classifies a request URL into an action for the network hardening handler.
+ * Exported for unit testing (REQ-D-06).
+ *
+ * - 'intercept': mermaid-cli's own handler should respond (pseudo-HTTPS ESM bundles)
+ * - 'allow':     safe protocol (data:, about:, blob:) or local mermaid-cli asset
+ * - 'block':     everything else (http:, https:, unauthorized file:, etc.)
+ */
+export type RequestAction = 'intercept' | 'allow' | 'block'
+
+export function classifyRequest(rawUrl: string): RequestAction {
+  // Use exact prefix including the slash to avoid matching subdomains like
+  // https://mermaid-cli-intercept.invalid.evil/...
+  if (rawUrl.startsWith(`${MERMAID_CLI_INTERCEPT_ORIGIN}/`)) {
+    return 'intercept'
+  }
+
+  let requestUrl: URL
+  try {
+    requestUrl = new URL(rawUrl)
+  } catch {
+    return 'block'
+  }
+
+  const { protocol } = requestUrl
+  if (protocol === 'data:' || protocol === 'about:' || protocol === 'blob:') {
+    return 'allow'
+  }
+  if (isMermaidCliLocalAsset(requestUrl)) {
+    return 'allow'
+  }
+  return 'block'
+}
+
 async function hardenPageNetwork(page: Page): Promise<void> {
   await page.setRequestInterception(true)
   page.on('request', (request) => {
-    const requestUrl = new URL(request.url())
-    const protocol = requestUrl.protocol
-    if (protocol === 'data:' || protocol === 'about:' || protocol === 'blob:') {
-      void request.continue()
+    const action = classifyRequest(request.url())
+
+    if (action === 'intercept') {
+      // Let mermaid-cli's own handler respond to these pseudo-HTTPS ESM bundle URLs.
       return
     }
-    if (isMermaidCliLocalAsset(requestUrl)) {
+
+    if (action === 'allow') {
       void request.continue()
-      return
+    } else {
+      void request.abort()
     }
-    void request.abort()
+
+    // mermaid-cli registers a second page.on('request') handler that calls
+    // request.continue() as a fallthrough for all non-intercept URLs.
+    // After we have already resolved this request, patch the instance methods to
+    // safe no-ops so the second handler does not throw "Request is already handled!".
+    silenceAlreadyHandled(request)
   })
+}
+
+function silenceAlreadyHandled(request: { continue: unknown; respond: unknown; abort: unknown }): void {
+  const noop = async (): Promise<void> => undefined
+  ;(request as Record<string, unknown>).continue = noop
+  ;(request as Record<string, unknown>).respond = noop
+  ;(request as Record<string, unknown>).abort = noop
 }
 
 function isMermaidCliLocalAsset(requestUrl: URL): boolean {
@@ -378,3 +426,7 @@ const MERMAID_CLI_ENTRY = fileURLToPath(
 const MERMAID_CLI_ASSET_ROOT = realpathSync(
   resolve(dirname(MERMAID_CLI_ENTRY), '..')
 )
+
+// mermaid-cli 11.14.0+ uses this pseudo-HTTPS origin to intercept local ESM module loads.
+// Our request handler must skip these so mermaid-cli's own interceptor can respond.
+const MERMAID_CLI_INTERCEPT_ORIGIN = 'https://mermaid-cli-intercept.invalid'
