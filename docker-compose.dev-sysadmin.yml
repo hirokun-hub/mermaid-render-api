@@ -1,0 +1,9 @@
+# Docker Desktop fallback only.
+# Use this overlay when Chromium sandbox startup fails with namespace
+# permission errors under local Docker Desktop. Do not use as the
+# production baseline.
+services:
+  mermaid-render-api:
+    cap_add:
+      - SYS_ADMIN
+      - SYS_CHROOT

@@ -23,6 +23,7 @@
 - 親 API 仕様: `docs/API仕様_Mermaid画像変換API.md`
 - 定量調査: `docs/svg-padding-investigation/REPORT.md`
 - 専門家レビュー: `docs/expert-reviews/2026-05-10_mermaid-svg-rendering-best-practices.md`
+- 専門家レビュー: `docs/expert-reviews/2026-05-13_docker-chromium-sandbox-container-best-practices.md`
 - 設計書: `design.md`(本ディレクトリ)
 
 ### 1.4 用語集
@@ -43,7 +44,7 @@
 
 ## 2. 技術的制約
 
-本セクションは、`docs/expert-reviews/2026-05-10_mermaid-svg-rendering-best-practices.md` で信頼性 ≥97% と判定した一次ソース確認済の事実を要件に転記したもの。設計判断の前提条件として扱う。
+本セクションは、`docs/expert-reviews/2026-05-10_mermaid-svg-rendering-best-practices.md` および `docs/expert-reviews/2026-05-13_docker-chromium-sandbox-container-best-practices.md` で信頼性 ≥97% と判定した一次ソース確認済の事実を要件に転記したもの。設計判断の前提条件として扱う。
 
 ### 2.1 Mermaid v11 系の制約
 
@@ -82,6 +83,13 @@
 - **C-P-02**: Puppeteer の page インスタンスを長期間再利用すると **メモリリークが発生**する(複数の本番運用事例で報告)。page 単位の **recycle policy(`maxUses`)** を実装すること(典型値: 50〜100 render / page)。browser 全体も定期再起動(典型値: 1000 render or 60 分)を行う。
 - **C-P-03**: Node.js を Docker PID 1 で実行すると、クラッシュした Chromium の **ゾンビプロセスが回収されない**。Dockerfile に **init(`tini` / `dumb-init`)** または `docker run --init` が必須。`SIGTERM` 受信時は graceful shutdown(queue close → browser close)を実装する。
 - **C-P-04**: `headless: 'shell'`(chrome-headless-shell)が Mermaid 用途では軽量で十分。`--disable-dev-shm-usage` / `--disable-gpu` / `--disable-extensions` 等の最小化オプションが標準。
+- **C-P-05**: Chromium 公式 Linux sandbox は setuid / namespaces / seccomp-BPF 等の複数層で構成される。本 API は untrusted Mermaid 入力を Chromium/Puppeteer に処理させるため、本番標準構成で `--no-sandbox` を使用してはならない。根拠: [Puppeteer troubleshooting](https://pptr.dev/troubleshooting), [Chromium Linux Sandbox](https://chromium.googlesource.com/chromium/src/+/main/sandbox/linux/README.md)。
+- **C-P-06**: Docker runtime では Chromium を非 root ユーザーで起動すること。root + sandbox 有効の Chromium は `Running as root without --no-sandbox is not supported` 系の起動失敗となる。Dockerfile / Compose / Kubernetes 等では数値 UID/GID または `USER node` 相当を明示する。
+- **C-P-07**: Debian `chromium` を使用する runtime image では `chromium-sandbox` パッケージを明示導入する。`chromium-sandbox` が欠落すると `No usable sandbox` 系の起動失敗となり得る。
+- **C-P-08**: Docker default seccomp は互換性と保護のバランスを取った既定値だが、`clone` による新 namespace 作成、`setns`、`unshare` 等を制限対象に含む。Chromium sandbox の namespace 作成失敗(`Failed to move to new namespace ... Operation not permitted`)が発生した場合、`seccomp=unconfined` へ安易に倒さず、Chrome 用 custom seccomp profile / AppArmor / user namespace 設定を切り分ける。根拠: [Docker seccomp](https://docs.docker.com/engine/security/seccomp/), [Chromium AppArmor userns restrictions](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md)。
+- **C-P-09**: `cap_add: SYS_ADMIN` は Puppeteer 公式 Docker image で sandbox mode 用に案内されるが、本 API の本番標準構成として採用してはならない。使用する場合は Docker Desktop 等の開発環境の暫定回避、または隔離済み renderer worker の最後の手段に限定し、`cap_drop: ALL` / read-only filesystem / tmpfs / PID・メモリ制限 / egress 制限を併用する。根拠: [Puppeteer Docker guide](https://pptr.dev/guides/docker), [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html)。
+- **C-P-10**: `security_opt: no-new-privileges:true` は一般的な container hardening として有効だが、Debian `chromium-sandbox` の SUID helper と衝突し得る。SUID sandbox helper を使う構成では無条件に有効化せず、namespace sandbox / custom seccomp 構成で両立を実測確認してから採用する。
+- **C-P-11**: 本番コンテナでは least privilege を前提とし、read-only root filesystem、書込先を `/tmp` / browser cache 用 tmpfs に限定、`cap_drop: ALL`、`pids_limit`、メモリ/CPU制限、Docker socket 非マウント、egress deny/allowlist を標準候補とする。根拠: [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html), [Docker Compose service reference](https://docs.docker.com/reference/compose-file/services/)。
 
 ## 3. ユーザーストーリーと要件
 

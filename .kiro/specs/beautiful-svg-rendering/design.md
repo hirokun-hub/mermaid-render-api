@@ -688,6 +688,17 @@ services:
     build: .
     ports: ['3100:3000']
     env_file: .env
+    user: '1000:1000'
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+      - /tmp/mermaid-render-api:rw,noexec,nosuid,nodev,size=256m
+      - /home/node/.cache:rw,noexec,nosuid,nodev,size=128m
+    shm_size: '256m'
+    pids_limit: 256
+    mem_limit: 1g
+    cap_drop:
+      - ALL
     restart: unless-stopped
 
   mermaid-render-api-test:          # 新規(本改修用)
@@ -699,6 +710,8 @@ services:
 ```
 
 `profiles: ['test']` により、通常の `docker compose up` では起動せず、検証時のみ起動する。
+
+Docker Desktop で Chromium sandbox の namespace / chroot 作成が拒否される場合は、開発用 overlay compose でのみ `SYS_ADMIN` / `SYS_CHROOT` を一時付与する。本番標準構成では `SYS_ADMIN` を付与せず、Linux 本番相当環境で custom seccomp / AppArmor / user namespace 状態を記録した smoke test を別途実施する。
 
 #### Dockerfile への init 追加(C-P-03)
 
@@ -712,7 +725,7 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "dist/server.js"]
 ```
 
-または `docker-compose.yml` で `init: true` を指定して docker-init を有効化(同等)。`NODE_OPTIONS="--disable-proto=delete"` も同 Dockerfile で設定し、Prototype Pollution の defense in depth(C-S-04)を担保する。
+または `docker-compose.yml` で `init: true` を指定して docker-init を有効化(同等)。ただし Dockerfile `ENTRYPOINT` と compose `init: true` は二重化しない。`NODE_OPTIONS="--disable-proto=delete"` も同 Dockerfile で設定し、Prototype Pollution の defense in depth(C-S-04)を担保する。Puppeteer の Chromium download を抑止するため、`PUPPETEER_SKIP_DOWNLOAD=true` は builder / runtime の `npm ci` より前に定義する。
 
 ### 8.2 検証フロー
 

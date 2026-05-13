@@ -4,6 +4,7 @@ import {
   BODY_LIMIT_BYTES,
   buildRequestMermaidConfig,
   CONTENT_TYPE_MAP,
+  DEFAULT_FORMAT,
   RATE_LIMIT_MAX_INFLIGHT
 } from '../config.js'
 import { generateRequestId } from '../utils/requestId.js'
@@ -15,7 +16,7 @@ import type {
   RenderErrorType,
   RendererCloseOptions
 } from '../renderer/mermaidRendererAdapter.js'
-import { WarningCollector } from '../utils/warnings.js'
+import { WarningCode, WarningCollector } from '../utils/warnings.js'
 import {
   buildErrorResponse,
   retryAfterFor
@@ -66,6 +67,7 @@ app.post('/render', async (req: Request, res: Response) => {
   for (const warning of validation.warnings) {
     warnings.add(warning.code, warning.detail)
   }
+  addSvgOnlyPostProcessWarningForPng(normalizedFormat, validation, warnings)
 
   const sendError = (
     type: RenderErrorType,
@@ -256,6 +258,21 @@ async function readyRenderer(): Promise<void> {
 }
 
 export { app, closeRenderer, readyRenderer }
+
+function addSvgOnlyPostProcessWarningForPng(
+  format: string,
+  validation: ReturnType<typeof validateRenderRequest>,
+  warnings: WarningCollector
+): void {
+  if (!validation.valid || format !== 'png') return
+  if (!validation.postProcess.strip_max_width) return
+
+  warnings.add(WarningCode.SvgOnlyOptionInPng, {
+    option: 'post_process.strip_max_width',
+    requested_format: format,
+    applies_to_format: DEFAULT_FORMAT
+  })
+}
 
 function observeRenderRequest(input: {
   requestId: string

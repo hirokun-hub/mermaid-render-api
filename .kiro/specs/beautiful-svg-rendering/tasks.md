@@ -363,46 +363,47 @@
 
 ### E-1 `src/server/server.ts` 起動 + graceful shutdown(P-09)
 
-- [ ] 既存 `mermaid.config.json` 動的書出し処理を削除(`renderMermaid` 直渡しに置換)
-- [ ] BrowserPool インスタンスを起動時に初期化
-- [ ] 初期化完了前のリクエストは 503 / `error_type=service_unavailable` を返す(PROP-7)
-- [ ] SIGTERM ハンドラ: `pool.close()` → server.close() → process.exit(0)
-- [ ] `/healthz` はプロセス生存応答(常時 200、liveness 等価)
+- [x] 既存 `mermaid.config.json` 動的書出し処理を削除(`renderMermaid` 直渡しに置換)
+- [x] BrowserPool インスタンスを起動時に初期化
+- [x] 初期化完了前のリクエストは 503 / `error_type=service_unavailable` を返す(PROP-7)
+- [x] SIGTERM ハンドラ: `pool.close()` → server.close() → process.exit(0)
+- [x] `/healthz` はプロセス生存応答(常時 200、liveness 等価)
 - [x] `/livez` / `/readyz` / `/metrics` ルートを D-1 から登録
 
 ### E-2 `src/server/app.ts` 配線
 
-- [ ] `validateRenderRequest` 結果 → `RenderInput` 組立 → `MermaidRendererAdapter.render()` 委譲
-- [ ] `CONTENT_TYPE_MAP` を `src/config.ts` から import(ローカル定義削除、DRY 改善)
-- [ ] `DEFAULT_FORMAT` を `src/config.ts` から import
-- [ ] エラー応答は `errorResponse.ts` の組立関数を呼ぶ(429 / 503 / 400 / 500 すべて)
-- [ ] 既存 `{ code, format, timeout_ms }` のみのリクエストが HTTP 200 を返す(PROP-1)
-- [ ] [TDD] 失敗テスト先行: `format=png` + `post_process.strip_max_width=true` → PNG 200 + 警告ログ `svg_only_option_in_png` 1 件(PROP-4)
-- [ ] [TDD] 失敗テスト先行: 構文エラー入力で PNG 応答ボディに `"Syntax error"` が含まれない(PROP-10)
+- [x] `validateRenderRequest` 結果 → `RenderInput` 組立 → `MermaidRendererAdapter.render()` 委譲
+- [x] `CONTENT_TYPE_MAP` を `src/config.ts` から import(ローカル定義削除、DRY 改善)
+- [x] `DEFAULT_FORMAT` を `src/config.ts` から import
+- [x] エラー応答は `errorResponse.ts` の組立関数を呼ぶ(429 / 503 / 400 / 500 すべて)
+- [x] 既存 `{ code, format, timeout_ms }` のみのリクエストが HTTP 200 を返す(PROP-1)
+- [x] [TDD] 失敗テスト先行: `format=png` + `post_process.strip_max_width=true` → PNG 200 + 警告ログ `svg_only_option_in_png` 1 件(PROP-4)
+- [x] [TDD] 失敗テスト先行: 構文エラー入力で PNG 応答ボディに `"Syntax error"` が含まれない(PROP-10)
 
 ### E-3 `package.json` 依存(P-10)
 
-- [ ] `@mermaid-js/mermaid-cli` を exact pin に変更(caret/tilde 削除、例: `"11.12.0"`)— NFR-02
+- [x] `@mermaid-js/mermaid-cli` を exact pin に変更(caret/tilde 削除、例: `"11.12.0"`)— NFR-02
 - [x] `pino` を `dependencies` に追加(現在は推移依存のみ)
 - [x] `prom-client` を `dependencies` に追加(現状未導入)
-- [ ] `puppeteer` を明示 `dependencies` 化(C-M-10: `@mermaid-js/mermaid-cli` の peerDep `^23` と同期)
-- [ ] `npm ci` で `package-lock.json` 同期、コミット
-- [ ] `README.md` / 開発者ドキュメントに「依存更新は画像差分 + property test + perf check 必須」と明記
+- [x] `puppeteer` を明示 `dependencies` 化(C-M-10: `@mermaid-js/mermaid-cli` の peerDep `^23` と同期)
+- [x] `npm ci` で `package-lock.json` 同期、コミット
+- [x] `README.md` / 開発者ドキュメントに「依存更新は画像差分 + property test + perf check 必須」と明記
 
 ### E-4 `Dockerfile` セキュリティ(P-11)
 
-- [ ] `tini` を `apt-get install` で追加し `ENTRYPOINT ["tini", "--"]` を設定(C-P-03 PID 1 ゾンビ回収)
-- [ ] `ENV NODE_OPTIONS="--disable-proto=delete"` を実行ステージに追加(C-S-04 defense in depth)
-- [ ] 既存 chromium / fonts-noto-cjk / X11 ライブラリは維持(動作確認済)
-- [ ] `PUPPETEER_SKIP_DOWNLOAD=true` / `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium` は維持
+- [x] `tini` を `apt-get install` で追加し `ENTRYPOINT ["tini", "--"]` を設定(C-P-03 PID 1 ゾンビ回収)
+- [x] `ENV NODE_OPTIONS="--disable-proto=delete"` を実行ステージに追加(C-S-04 defense in depth)
+- [x] 既存 chromium / fonts-noto-cjk / X11 ライブラリは維持(動作確認済)
+- [x] `PUPPETEER_SKIP_DOWNLOAD=true` / `PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium` は維持
 
 ### Phase 4 受入基準
 
-- [ ] `vitest run` で既存 integration test が全 green(後方互換)
-- [ ] PROP-1, 2, 4, 7, 10, 16 が green
-- [ ] `docker compose build` 成功 + `docker compose up -d` 起動後に `curl /livez` 200、`curl /readyz` 200
-- [ ] `curl /healthz` は維持(既存クライアント互換)
-- [ ] `npm ci` で lock 同期、`@mermaid-js/mermaid-cli` の `package.json` 表記が exact pin(caret/tilde 無し)
+- [x] `vitest run` で既存 integration test が全 green(後方互換)
+- [x] PROP-1, 2, 4, 7, 10, 16 が green
+- [x] Docker Desktop dev overlay 併用で `docker compose build` 成功 + `docker compose up -d` 起動後に `curl /livez` 200、`curl /readyz` 200
+- [ ] Linux 本番相当環境で `SYS_ADMIN` なし + custom seccomp / AppArmor / user namespace 状態記録つき smoke test を実施
+- [x] `curl /healthz` は維持(既存クライアント互換)
+- [x] `npm ci` で lock 同期、`@mermaid-js/mermaid-cli` の `package.json` 表記が exact pin(caret/tilde 無し)
 
 ### Phase 4 対象ファイル
 
@@ -413,7 +414,12 @@
 | 拡張 | `package.json` |
 | 同期 | `package-lock.json` |
 | 拡張 | `Dockerfile` |
-| 新規 | `test/integration/serverLockedSettings.test.ts`(PROP-2) |
+| 拡張 | `docker-compose.yml` |
+| 新規 | `docker-compose.dev-sysadmin.yml` |
+| 拡張 | `README.md` |
+| 拡張 | `test/helpers/server.ts` |
+| 拡張 | `test/integration/render.test.ts` |
+| 新規 | `test/integration/serverLockedSettings.test.ts` |
 
 ---
 
@@ -433,7 +439,7 @@
 ### F-2 integration test 拡張
 
 - [ ] `test/integration/browserPool.test.ts`(Phase 1 で作成、PROP-6, 7)
-- [ ] `test/integration/serverLockedSettings.test.ts`(Phase 4 で作成、PROP-2)
+- [x] `test/integration/serverLockedSettings.test.ts`(Phase 4 で作成、PROP-2)
 - [ ] `test/integration/render.test.ts` 既存に PROP-1, 4, 10 を追加
 - [ ] `test/integration/observability.test.ts`(Phase 3 で作成、PROP-17)
 - [ ] `test/integration/renderModeCli.test.ts`: `RENDERER_MODE=cli` でサーバ起動して既存 render 互換確認(PROP-16)
