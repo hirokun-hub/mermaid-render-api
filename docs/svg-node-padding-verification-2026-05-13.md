@@ -199,3 +199,57 @@ If the product requirement is strictly "reduce blank space inside each node", th
 3. Provide a documented opt-in style preset that changes node appearance without pretending to alter Mermaid's internal layout model.
 
 Option 2 is the most direct, but it is also the riskiest because it must preserve edges, marker alignment, labels, non-rect node shapes, and accessibility attributes.
+
+---
+
+## Conclusion Update — Padding Probe (2026-05-16)
+
+The "Recommended Next Step" section above is **superseded** by the empirical probe described below.
+
+### Probe Summary
+
+Three back-to-back requests against the running API (`http://127.0.0.1:3100/render`, programmatic mode, Mermaid `11.15.0` bundled, `defaultRenderer: "dagre-wrapper"`, `htmlLabels: true`), same Mermaid source `flowchart LR\n  A["集める"] --> B["完了"]`, varying only `mermaid_config.flowchart.padding`:
+
+| `flowchart.padding` | Node A rect (W × H) | Node A foreignObject (W × H) | Node A internal padding (H × V) | root viewBox |
+|---:|---:|---:|---:|---|
+| (unset, schema default 15) | `108.02 × 54` | `48.02 × 24` | **`60 × 30`** | `240 × 54` |
+| `4` | `64.02 × 32` | `48.02 × 24` | **`16 × 8`** | `152 × 32` |
+| `60` | `288.02 × 144` | `48.02 × 24` | **`240 × 120`** | `600 × 144` |
+
+Linear relationship verified across all three samples:
+
+```text
+horizontal internal padding (rect.width  − foreignObject.width)  = 4 × flowchart.padding
+vertical   internal padding (rect.height − foreignObject.height) = 2 × flowchart.padding
+```
+
+This contradicts the Mermaid `config.schema.yaml` comment **"Only used in new experimental rendering"** for the `padding` key. In our environment, `flowchart.padding` is honored by the legacy `dagre-wrapper` renderer as well.
+
+### Source Code Reading
+
+The relationship matches the formula in the bundled Mermaid module at `node_modules/mermaid/dist/chunks/mermaid.esm/chunk-HQMLCRZ6.mjs:3340-3351` for the non-`neo` look:
+
+```text
+labelPaddingX = nodePadding × 2
+labelPaddingY = nodePadding × 1
+rect_width    = foreignObject_width  + 2 × labelPaddingX  (= foreignObject_width  + 4 × nodePadding)
+rect_height   = foreignObject_height + 2 × labelPaddingY  (= foreignObject_height + 2 × nodePadding)
+```
+
+`nodePadding` is sourced from `flowchart.padding` (default 15) at `flowDiagram-3HAHYXQ6.mjs:906`.
+
+### Implications
+
+1. **The original US-03 goal (reduce node-internal padding) is achievable via configuration alone.** No SVG post-processing or renderer switch is needed.
+2. **The `Recommended Next Step` options above are no longer the only paths.** Adjusting `flowchart.padding` in `BEAUTIFUL_DEFAULTS` (or accepting it as a request-time override) is the simplest and most direct fix.
+3. **The schema-comment-derived guarantee is absent.** Mermaid minor updates could change this behavior. Image-diff regression on dependency upgrade (NFR-02) is required.
+
+### Spec Documents Updated as a Result
+
+- `requirements.md` C-M-01 — restated to reflect empirical evidence
+- `design.md` §1.1 (現行構造の課題) and §3.1 (BEAUTIFUL_DEFAULTS table) — adds `flowchart.padding: 8`
+- `docs/expert-reviews/2026-05-10_mermaid-svg-rendering-best-practices.md` §1.2 and §6.2 — annotated with the empirical update
+
+### Visual Artifacts
+
+Probe SVG / PNG samples are kept outside the repository (under `/tmp/padding-probe/`) because they are derived artifacts re-creatable by repeating the three curl calls in the table above. The original `current-case-02.*` and `current-case-10.*` files in `./svg-node-padding-verification-2026-05-13/` continue to represent the **pre-tuning baseline** for visual comparison.

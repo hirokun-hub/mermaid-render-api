@@ -49,7 +49,7 @@
 
 ### 2.1 Mermaid v11 系の制約
 
-- **C-M-01**: `flowchart.padding`(Mermaid デフォルト 15)は公式 schema で「**Only used in new experimental rendering**」と明記されている。本リポジトリ採用の `dagre-wrapper`(v11 系の安定デフォルト)では効かない前提とする。
+- **C-M-01**: `flowchart.padding`(Mermaid デフォルト 15)は公式 schema で「**Only used in new experimental rendering**」と明記されているが、**実機検証(2026-05-16、Mermaid `11.15.0` bundled、`defaultRenderer: "dagre-wrapper"`、`htmlLabels: true`)で本リポジトリ構成でも効くことを確認した**(`docs/svg-node-padding-verification-2026-05-13.md` の Padding Probe 追補参照)。実測式: `rect.width − foreignObject.width = 4 × flowchart.padding`、`rect.height − foreignObject.height = 2 × flowchart.padding`(`padding=4 → 16 × 8`、`padding=15(default) → 60 × 30`、`padding=60 → 240 × 120` で線形)。schema コメント由来の挙動保証は無いため、Mermaid 依存更新時(NFR-02)はこの前提が崩れていないかを画像差分で再確認すること。`beautiful_defaults` での具体値は `design.md` §3.1 を参照。
 - **C-M-02**: `flowchart.htmlLabels` は v11.12.3+ で **DEPRECATED**。ルートの `htmlLabels` を使用しなければならない。
 - **C-M-03**: `htmlLabels: false` は v11.11+ で複数の Approved Bug が open。デフォルト適用してはならない。
   - [#7015](https://github.com/mermaid-js/mermaid/issues/7015) エンティティコード(`#quot;` 等)が無効化される

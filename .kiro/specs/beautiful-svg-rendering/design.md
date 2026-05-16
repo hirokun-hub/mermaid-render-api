@@ -31,7 +31,7 @@
 |---|---|---|
 | `mmdc` 起動毎に Puppeteer/Chromium をブート | `src/renderer/mermaidRenderer.ts:42-65` の `execFileAsync('npx', ['--yes','mmdc',...])` | リクエストごとに 1〜2 秒固定オーバーヘッド(NFR-01 違反) |
 | Mermaid 設定がサーバ起動時の固定ファイル | `src/server/server.ts:30-38` で `mermaid.config.json` を一度だけ書き出し | リクエストごとの設定差替えが原理的に不可能(REQ-U-03 未達) |
-| `MERMAID_PADDING` は themeCSS の `svg { padding }` 注入のみ | `src/config.ts:37-50` の `generateMermaidConfig()` | ノード内余白制御に介入できない(US-03 未達) |
+| `MERMAID_PADDING` は themeCSS の `svg { padding }` 注入のみ | `src/config.ts:37-50` の `generateMermaidConfig()` | ノード内側余白(rect と foreignObject の差分)に直接介入できない。ただし `flowchart.padding` が `dagre-wrapper` でも実機で効くことを 2026-05-16 検証で確認済(C-M-01)、§3.1 BEAUTIFUL_DEFAULTS で活用する |
 | エラー応答は `mmdc` 生 stderr のみ | `src/server/app.ts:43-63` の `sendError()` | 行番号・抽出本文がない(US-05 未達) |
 
 ### 2.2 新アーキテクチャ
@@ -169,9 +169,10 @@ sequenceDiagram
 | `securityLevel` | `"strict"` | C-S-01(Server_Locked_Setting と二重指定) |
 | `suppressErrorRendering` | `true` | REQ-U-07 |
 | `flowchart.useMaxWidth` | `false` | C-H-02 / US-04 |
-| `flowchart.diagramPadding` | `0` | US-03(外周余白圧縮) |
-| `flowchart.nodeSpacing` | `30` | US-03(コンパクト) |
-| `flowchart.rankSpacing` | `40` | US-03(コンパクト) |
+| `flowchart.diagramPadding` | `0` | US-03(ダイアグラム外周の余白圧縮) |
+| `flowchart.nodeSpacing` | `30` | US-03(ノード**間**スペースのコンパクト化) |
+| `flowchart.rankSpacing` | `40` | US-03(ランク間スペースのコンパクト化) |
+| `flowchart.padding` | `8` | US-03(ノード**内側**余白の圧縮)。Mermaid schema コメントは「experimental rendering 専用」とするが、実機検証(C-M-01)で `dagre-wrapper` でも効くことを確認済。実測関係 `内側余白(横) = 4 × padding`、`内側余白(縦) = 2 × padding` から、`padding=8 → 32 × 16`(Mermaid デフォルト 15 → `60 × 30` の約半分)を採用 |
 | `flowchart.curve` | `"basis"` | Mermaid 既定継承(配布資料に無難) |
 | `flowchart.wrappingWidth` | `200` | Mermaid 既定継承 |
 | `flowchart.defaultRenderer` | `"dagre-wrapper"` | REQ-UN-03(ELK 既定化禁止) |

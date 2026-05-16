@@ -28,6 +28,8 @@
          |
         Phase 4.5 (依存脆弱性修復)
          |
+        Phase 4.6 (flowchart.padding 反映 / C-M-01 実証アップデート)
+         |
         Phase 5 (テスト集約)
          |
         Phase 6 (デプロイ + 性能計測)
@@ -51,7 +53,8 @@
 | **Phase 3** | 観測 / レート制御層(observability + rateLimiter) | P-07, P-08 | 13, 17 | Phase 0 |
 | **Phase 4** | サーバ統合 + Docker | P-09, P-10, P-11 | 1, 2, 4, 7, 10, 16 | Phase 1, Phase 2, Phase 3 |
 | **Phase 4.5** | Security dependency remediation | design.md §9 | REQ-D-01〜09 | Phase 4 |
-| **Phase 5** | テスト集約(property 17 個 + integration) | P-12 | 1〜17 | Phase 4.5 |
+| **Phase 4.6** | BEAUTIFUL_DEFAULTS に `flowchart.padding` を追加(C-M-01 実証アップデート反映) | H-1〜H-7 | 3 拡張, 新規 18 | Phase 4.5 |
+| **Phase 5** | テスト集約(property 18 個 + integration) | P-12 | 1〜18 | Phase 4.6 |
 | **Phase 6** | デプロイ + 性能計測(blue/green + NFR-01) | P-13, P-14, P-15 | NFR-01 達成判定 | Phase 5 |
 
 ---
@@ -508,18 +511,91 @@
 
 ---
 
-## 7. Phase 5 テスト集約
+## 7. Phase 4.6 BEAUTIFUL_DEFAULTS に flowchart.padding を追加(C-M-01 実証アップデート反映)
 
-**Validates:** PROP-1〜17 全
-**PROP:** 1〜17(集約と漏れ補完)
+**Validates:** REQ-U-01, REQ-U-03, REQ-E-01, US-03, C-M-01(改訂後)
+**PROP:** PROP-3(優先順マージ拡張), 新規 **PROP-18**(`mermaid_config.flowchart.padding=N` の指定が SVG ノード内側余白に線形反映: `rect.width − foreignObject.width = 4N` / `rect.height − foreignObject.height = 2N`、2026-05-16 実機検証由来 — `docs/svg-node-padding-verification-2026-05-13.md` の "Conclusion Update — Padding Probe" 参照)
 **依存:** Phase 4.5 完了
+**並行可能:** Phase 5 と並行可
+
+### 背景
+
+`requirements.md` C-M-01 は当初「`flowchart.padding` は dagre-wrapper で効かない前提」としていたが、2026-05-16 の実機検証(Mermaid `11.15.0` bundled、`defaultRenderer: "dagre-wrapper"`、`htmlLabels: true`)で **`flowchart.padding` が線形に効く**ことを確認したため、C-M-01 を改訂し、`BEAUTIFUL_DEFAULTS` に `flowchart.padding: 8`(内側余白 `32 × 16`)を採用する。schema コメント由来の挙動保証は無いため、Mermaid 依存更新時(NFR-02)は画像差分で本前提が崩れていないか再検証する。
+
+### H-1 `[TDD]` flowchart.padding 線形反映の integration test
+
+- [ ] [TDD] 失敗テスト先行: `mermaid_config.flowchart.padding=4` で render → 全 rect ノードの内側余白が `16 × 8`(横 = `rect.width − foreignObject.width`、縦 = 同じく高さ差)
+- [ ] [TDD] 失敗テスト先行: `mermaid_config.flowchart.padding=8` で render → `32 × 16`
+- [ ] [TDD] 失敗テスト先行: `mermaid_config.flowchart.padding=30` で render → `120 × 60`
+- [ ] 検証ロジック: SVG をパースし `<rect class="basic label-container">` とそのノードの `<foreignObject>` の `width/height` 差分を計測。多ノード図でも全ノードで一致を要求
+
+### H-2 `src/config.ts` BEAUTIFUL_DEFAULTS に flowchart.padding: 8 を追加
+
+- [ ] `BEAUTIFUL_DEFAULTS.flowchart` に `padding: 8` を追加(内側余白 `32 × 16`、Mermaid default 15 → `60 × 30` の約半分)
+- [ ] [TDD] 失敗テスト先行: リクエストで `mermaid_config` を一切指定しない場合、Case 02 の SVG ノード内側余白が `32 × 16` になる
+- [ ] [TDD] 失敗テスト先行: `mermaid_config.flowchart.padding=60` で上書きすると `240 × 120` に変わる(優先順 BEAUTIFUL_DEFAULTS → user override の検証、PROP-3 拡張)
+
+### H-3 `[TDD]` PROP-18 property test の追加
+
+- [ ] [TDD] 失敗テスト先行(`test/property/prop-18_flowchart_padding_linear.property.test.ts`): 任意の `padding ∈ [1, 50]` の整数で `差分横 = 4 × padding` / `差分縦 = 2 × padding` が成立(fast-check `fc.integer({ min: 1, max: 50 })`)
+- [ ] `describe` に `Validates: REQ-E-01 / US-03 / C-M-01(改訂後)` タグを記載
+
+### H-4 unit test の更新
+
+- [ ] `test/unit/buildRequestMermaidConfig.test.ts` を更新: `BEAUTIFUL_DEFAULTS.flowchart.padding=8` が user override で上書きされ、`SERVER_LOCKED_SETTINGS` の最終強制適用は影響しない(PROP-3 系の境界拡張)
+- [ ] `BEAUTIFUL_DEFAULTS` の deep clone snapshot test(あれば)に `flowchart.padding` キーが含まれることを確認
+
+### H-5 受入基準サマリの追補
+
+- [ ] `requirements.md` §6 受入基準サマリに行追加: 「`mermaid_config.flowchart.padding=N` を指定すると SVG ノード内側余白が `4N × 2N` に変わる」(関連 REQ: REQ-U-03 / REQ-E-01、関連 US: US-03、関連 C: C-M-01 改訂後)
+
+### H-6 検証ドキュメントの追補
+
+- [ ] `docs/svg-node-padding-verification-2026-05-13/` 直下に `after-padding-tuning-case-02.svg` / `after-padding-tuning-case-02.png` / `after-padding-tuning-case-10.svg` / `after-padding-tuning-case-10.png` を追加(Beautiful Defaults `padding: 8` 適用後の baseline)
+- [ ] `docs/svg-node-padding-verification-2026-05-13.md` の "Conclusion Update — Padding Probe" の末尾に「Beautiful Defaults 適用後の再計測」セクションを追加し、Case 02 / Case 10 内側余白が `60 × 30` → `32 × 16` に縮んだことを表で示す
+
+### H-7 NFR-02 画像差分検証手順の補強
+
+- [ ] Mermaid / `@mermaid-js/mermaid-cli` 依存更新時の検証手順(`design.md` 該当節 または `docs/dependency-overrides.md`)に「Case 02 / Case 10 の `rect.size − foreignObject.size` 差分が `padding × {4, 2}` の関係を保つこと」を必須項目として明記
+
+### Phase 4.6 受入基準
+
+- [ ] `vitest run test/integration/flowchartPadding.test.ts test/unit/buildRequestMermaidConfig.test.ts test/property/prop-18_flowchart_padding_linear.property.test.ts` で PROP-3 拡張 / PROP-18 が green
+- [ ] Beautiful Defaults 適用後の SVG: Case 02 / Case 10 ともに全 rect ノードの内側余白が `32 × 16` になっており、`padding=N` 上書きで `4N × 2N` に線形変化することが integration test で確認できる
+- [ ] 既存 PROP-1〜17 が無修正のまま green(後方互換)
+- [ ] `grep -oE 'PROP-[0-9]+' .kiro/specs/beautiful-svg-rendering/tasks.md | sort -u | wc -l` が **18** になる
+
+### Phase 4.6 対象ファイル
+
+| 種別 | パス |
+|---|---|
+| 拡張 | `src/config.ts` |
+| 新規 | `test/integration/flowchartPadding.test.ts` |
+| 新規 | `test/property/prop-18_flowchart_padding_linear.property.test.ts`(Phase 5 で F-1 配下に再配置可) |
+| 拡張 | `test/unit/buildRequestMermaidConfig.test.ts` |
+| 拡張 | `.kiro/specs/beautiful-svg-rendering/requirements.md`(§6 受入基準サマリ) |
+| 拡張 | `.kiro/specs/beautiful-svg-rendering/design.md`(必要に応じて §5 正確性プロパティ表に PROP-18 を追加) |
+| 拡張 | `.kiro/specs/beautiful-svg-rendering/tasks.md`(本フェーズの追加 + Phase 5 F-1 への PROP-18 追記 + §11 PROP 件数更新) |
+| 拡張 | `docs/svg-node-padding-verification-2026-05-13.md` |
+| 新規 | `docs/svg-node-padding-verification-2026-05-13/after-padding-tuning-case-02.svg` |
+| 新規 | `docs/svg-node-padding-verification-2026-05-13/after-padding-tuning-case-02.png` |
+| 新規 | `docs/svg-node-padding-verification-2026-05-13/after-padding-tuning-case-10.svg` |
+| 新規 | `docs/svg-node-padding-verification-2026-05-13/after-padding-tuning-case-10.png` |
+
+---
+
+## 8. Phase 5 テスト集約
+
+**Validates:** PROP-1〜18 全
+**PROP:** 1〜18(集約と漏れ補完)
+**依存:** Phase 4.6 完了
 
 ### F-1 property test 整理(P-12)
 
-- [ ] `test/property/` 配下に PROP-1〜17 を 1 ファイル 1〜2 PROP で配置(命名: `prop-NN_<title>.property.test.ts`)
+- [ ] `test/property/` 配下に PROP-1〜18 を 1 ファイル 1〜2 PROP で配置(命名: `prop-NN_<title>.property.test.ts`)
 - [ ] 各テストの `describe` に `Validates: REQ-* / NFR-* / C-*` タグを記載
 - [ ] `fast-check` Arbitrary を明示(`fc.record`, `fc.oneof`, `fc.constantFrom` 等)
-- [ ] PROP-1〜17 を `grep "PROP-[0-9]\\+" test/` で全件カバーを確認
+- [ ] PROP-1〜18 を `grep "PROP-[0-9]\\+" test/` で全件カバーを確認
 
 ### F-2 integration test 拡張
 
@@ -569,13 +645,14 @@
 | 新規 | `test/property/prop-15_unknown_key_and_locked.property.test.ts` |
 | 新規 | `test/property/prop-16_renderer_mode_cli.property.test.ts` |
 | 新規 | `test/property/prop-17_metrics_endpoint.property.test.ts` |
+| 新規 | `test/property/prop-18_flowchart_padding_linear.property.test.ts` |
 | 拡張 | `test/integration/render.test.ts` |
 | 拡張 | `test/integration/rateLimitTimeout.test.ts` |
 | 拡張 | `test/helpers/server.ts` |
 
 ---
 
-## 8. Phase 6 デプロイ + 性能計測(blue/green)
+## 9. Phase 6 デプロイ + 性能計測(blue/green)
 
 **Validates:** NFR-01, NFR-03
 **PROP:** —(性能達成判定)
@@ -649,7 +726,7 @@
 
 ---
 
-## 9. Out of Scope(将来別票)
+## 10. Out of Scope(将来別票)
 
 - 複数 SVG 同一ページ embed 用の ID 全 rewrite(要件定義書 §8 参照)
 - ELK レンダラのデフォルト化(C-M-04 既知不具合解消待ち)
@@ -657,13 +734,13 @@
 - Mermaid バージョン更新(NFR-02 手順で別途実施。ただし Phase 4.5 の security dependency remediation に必要な exact pin 更新は対象)
 - エラーメッセージ日本語化(MVP 後)
 
-## 10. 検証(tasks.md 自身の整合性)
+## 11. 検証(tasks.md 自身の整合性)
 
 実装着手前に以下を機械的に確認する:
 
 1. **REQ 網羅性**: `grep -oE 'REQ-[A-Z]+-[0-9]+' .kiro/specs/beautiful-svg-rendering/tasks.md | sort -u` の結果数が requirements.md の REQ-* と一致
 2. **NFR 網羅性**: `grep -c 'NFR-0[1-6]' .kiro/specs/beautiful-svg-rendering/tasks.md` で 6 系列全て出現
-3. **PROP 網羅性**: `grep -oE 'PROP-[0-9]+' .kiro/specs/beautiful-svg-rendering/tasks.md | sort -u | wc -l` が 17
+3. **PROP 網羅性**: `grep -oE 'PROP-[0-9]+' .kiro/specs/beautiful-svg-rendering/tasks.md | sort -u | wc -l` が 18
 4. **C-* 網羅性**: 主要 C-S-* / C-P-* / C-M-* が tasks.md 内に出現(セキュリティ・運用前提として実装担保される)
 5. **TDD タグ妥当性**: `[TDD]` 付き行が「複雑ロジック / セキュリティ / 並行制御」のみで、配線系には付いていないことを目視
-6. **依存閉路なし**: Phase 0 → {Phase 1, Phase 2, Phase 3} → Phase 4 → Phase 4.5 → Phase 5 → Phase 6 の DAG
+6. **依存閉路なし**: Phase 0 → {Phase 1, Phase 2, Phase 3} → Phase 4 → Phase 4.5 → Phase 4.6 → Phase 5 → Phase 6 の DAG

@@ -41,7 +41,7 @@
 | `diagramPadding` | `8` | ダイアグラム全体の外周余白 |
 | `nodeSpacing` | `50` | 同一ランクのノード**間** |
 | `rankSpacing` | `50` | 異なるランクのノード**間** |
-| `padding` | `15` | **★ "Only used in new experimental rendering" と明記**。現行 `dagre-wrapper` では効かない |
+| `padding` | `15` | schema 上 **"Only used in new experimental rendering"** と明記。**ただし 2026-05-16 実機検証(Mermaid `11.15.0` bundled、`defaultRenderer: "dagre-wrapper"`、`htmlLabels: true`)で `dagre-wrapper` でも効くことを確認**。実測式 `rect.width − fO.width = 4 × padding` / `rect.height − fO.height = 2 × padding`。schema コメント由来の挙動保証は無いため依存更新時の画像差分検証必須(`requirements.md` C-M-01) |
 | `useMaxWidth` | `true` | true → SVG ルートに `style="max-width:...px"` 付与。false → 絶対 px の `width`/`height` 属性 |
 | `wrappingWidth` | `200` | Markdown Strings 自動折り返しの幅 |
 | `defaultRenderer` | `dagre-wrapper` | v11 のレガシー側デフォルト。`elk` は新統合レンダラ経由 |
@@ -239,8 +239,11 @@ Expert A/O 一致(外部 issue/コミュニティ回答で実証):
 
 ### 6.2 ノード内余白
 
-- `flowchart.padding` は `dagre-wrapper` で効かないことが schema で明示(§1.2、§3.5)。`beautiful` preset に書いても効果は無い前提
-- ノード内余白を真に縮めたい場合は ELK 採用が現実解だが、副作用あるため `beautiful` には入れない(opt-in パラメータ `layout: "elk"` で対応)
+> **2026-05-16 アップデート(実測ベース)**: 当初は schema コメント「Only used in new experimental rendering」を文字通り受け取り「`dagre-wrapper` では効かない前提」としていたが、実機検証で本リポジトリ構成(Mermaid `11.15.0` bundled、`dagre-wrapper`、`htmlLabels: true`)でも `flowchart.padding` が線形に効くことを確認したため、本節の方針を改訂する。
+
+- **改訂後**: `flowchart.padding` を `beautiful` preset の中で活用できる。実測関係 `内側余白(横) = 4 × padding`、`内側余白(縦) = 2 × padding`(Mermaid default 15 → `60 × 30`、推奨 `padding=8 → 32 × 16`)。具体値は `design.md` §3.1 BEAUTIFUL_DEFAULTS に集約
+- schema コメント由来の挙動保証は無いため、Mermaid 依存更新時(NFR-02)は画像差分で本前提が崩れていないか再検証する
+- ELK 採用は引き続き opt-in のみ(別解として残すが、`flowchart.padding` で内側余白問題が解決したため第一選択ではなくなった)
 
 ### 6.3 配布 HTML 対応(必須)
 
