@@ -27,7 +27,7 @@ function getForeignObjectStyles(svg: string): string[] {
   })
 }
 
-describe('PROP-18: forceForeignObjectOverflowVisible unit property', () => {
+describe('PROP-18: forceForeignObjectOverflowVisible unit property (Validates: REQ-U-09 / C-H-03 / US-02)', () => {
   test('all foreignObjects without existing overflow get overflow:visible', () => {
     fc.assert(
       fc.property(
@@ -111,7 +111,7 @@ describe('PROP-18: forceForeignObjectOverflowVisible unit property', () => {
   })
 })
 
-describe('PROP-18: applyPostProcess format boundary (format=svg vs format=png)', () => {
+describe('PROP-18: applyPostProcess format boundary (format=svg vs format=png) (Validates: REQ-U-09 / C-H-03 / US-02)', () => {
   test('format=svg: all foreignObjects get overflow:visible via applyPostProcess', () => {
     fc.assert(
       fc.property(

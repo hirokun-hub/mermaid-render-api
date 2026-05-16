@@ -1,3 +1,7 @@
+/**
+ * PROP-13: HTTP 層 RATE_LIMIT_MAX_INFLIGHT 超 → 即時 429, Pool 層 POOL_QUEUE_MAX 超 → 503
+ * Validates: REQ-S-03
+ */
 import { afterEach, describe, expect, test } from 'vitest'
 
 import { httpRequest } from '../helpers/http.js'

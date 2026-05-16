@@ -10,8 +10,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('POST /render', () => {
-  test('returns SVG when format is svg', async () => {
+describe('POST /render (PROP-1, PROP-4, PROP-10)', () => {
+  test('PROP-1: returns SVG when format is svg', async () => {
     const server = await startTestServer()
     try {
       const response = await httpRequest(`${server.baseUrl}/render`, {
@@ -47,7 +47,7 @@ describe('POST /render', () => {
     }
   })
 
-  test('ignores SVG-only post_process options for PNG requests', async () => {
+  test('PROP-4: ignores SVG-only post_process options for PNG requests', async () => {
     const logSpy = vi.spyOn(logger, 'info')
     const server = await startTestServer()
     try {
@@ -74,7 +74,7 @@ describe('POST /render', () => {
     }
   })
 
-  test('returns JSON without Syntax error artwork for invalid PNG requests', async () => {
+  test('PROP-10: returns JSON without Syntax error artwork for invalid PNG requests', async () => {
     const server = await startTestServer()
     try {
       const response = await httpRequest(`${server.baseUrl}/render`, {

@@ -10,7 +10,7 @@ import {
   WarningCollector
 } from '../../src/utils/warnings.js'
 
-describe('buildRequestMermaidConfig', () => {
+describe('buildRequestMermaidConfig (PROP-3, PROP-8)', () => {
   test('uses Beautiful Defaults and server locked settings when no override exists', () => {
     const result = buildRequestMermaidConfig()
 

@@ -4,7 +4,7 @@ import type { Browser, BrowserContext, Page } from 'puppeteer'
 import { BrowserPool, BrowserPoolError } from '../../src/renderer/browserPool.js'
 
 describe('BrowserPool', () => {
-  test('rejects acquire before start with service_unavailable', async () => {
+  test('PROP-7: rejects acquire before start with service_unavailable', async () => {
     const pool = new BrowserPool({ launchBrowser: createFakeBrowserFactory() })
 
     expect(pool.isReady()).toBe(false)
@@ -71,7 +71,7 @@ describe('BrowserPool', () => {
     await pool.close()
   })
 
-  test('keeps browser count small across repeated requests', async () => {
+  test('PROP-6: keeps browser count small across repeated requests', async () => {
     const factory = createFakeBrowserFactory()
     const pool = new BrowserPool({
       poolSize: 2,

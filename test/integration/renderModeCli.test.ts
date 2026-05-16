@@ -9,7 +9,7 @@ import { startTestServer } from '../helpers/server.js'
 
 process.env.RENDERER_MODE = 'cli'
 
-describe('RENDERER_MODE=cli: CLI fallback diagram regression', () => {
+describe('PROP-16: RENDERER_MODE=cli: CLI fallback diagram regression', () => {
   test('flowchart renders via CLI fallback successfully', async () => {
     const server = await startTestServer()
     try {

@@ -8,7 +8,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('server locked Mermaid settings', () => {
+describe('server locked Mermaid settings (PROP-2)', () => {
   test('ignores client securityLevel override and renders successfully', async () => {
     const logSpy = vi.spyOn(logger, 'info')
     const server = await startTestServer()

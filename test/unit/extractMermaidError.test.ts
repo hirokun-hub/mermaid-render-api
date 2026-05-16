@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import { extractMermaidError } from '../../src/utils/extractMermaidError.js'
 
-describe('extractMermaidError', () => {
+describe('extractMermaidError (PROP-5)', () => {
   test('extracts message and line from parse errors', () => {
     const result = extractMermaidError(
       'Error: Parse error on line 3:\n...A-->\nExpecting node'

@@ -19,7 +19,7 @@ describe('observability endpoints', () => {
     server = null
   })
 
-  test('/metrics exposes the required Prometheus metric families', async () => {
+  test('PROP-17: /metrics exposes the required Prometheus metric families', async () => {
     server = await startTestServer()
 
     const response = await httpRequest(`${server.baseUrl}/metrics`)

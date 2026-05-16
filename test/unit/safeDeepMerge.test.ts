@@ -6,7 +6,7 @@ import {
   WarningCollector
 } from '../../src/utils/warnings.js'
 
-describe('safeDeepMerge', () => {
+describe('safeDeepMerge (PROP-12)', () => {
   test('skips forbidden top-level keys', () => {
     const warnings = new WarningCollector()
     const payload = JSON.parse('{"__proto__":{"polluted":true}}') as unknown

@@ -605,37 +605,37 @@
 
 ### F-1 property test 整理(P-12)
 
-- [ ] `test/property/` 配下に PROP-1〜18 を 1 ファイル 1〜2 PROP で配置(命名: `prop-NN_<title>.property.test.ts`)
-- [ ] 各テストの `describe` に `Validates: REQ-* / NFR-* / C-*` タグを記載
-- [ ] `fast-check` Arbitrary を明示(`fc.record`, `fc.oneof`, `fc.constantFrom` 等)
-- [ ] PROP-1〜18 を `grep "PROP-[0-9]\\+" test/` で全件カバーを確認
+- [x] `test/property/` 配下に PROP-1〜18 を 1 ファイル 1〜2 PROP で配置(命名: `prop-NN_<title>.property.test.ts`)
+- [x] 各テストの `describe` に `Validates: REQ-* / NFR-* / C-*` タグを記載
+- [x] `fast-check` Arbitrary を明示(`fc.record`, `fc.oneof`, `fc.constantFrom` 等)
+- [x] PROP-1〜18 を `grep "PROP-[0-9]\\+" test/` で全件カバーを確認
 
 ### F-2 integration test 拡張
 
-- [ ] `test/integration/browserPool.test.ts`(Phase 1 で作成、PROP-6, 7)
+- [x] `test/integration/browserPool.test.ts`(Phase 1 で作成、PROP-6, 7)
 - [x] `test/integration/serverLockedSettings.test.ts`(Phase 4 で作成、PROP-2)
-- [ ] `test/integration/render.test.ts` 既存に PROP-1, 4, 10 を追加
-- [ ] `test/integration/observability.test.ts`(Phase 3 で作成、PROP-17)
-- [ ] `test/integration/renderModeCli.test.ts`: `RENDERER_MODE=cli` でサーバ起動して既存 render 互換確認(PROP-16)
+- [x] `test/integration/render.test.ts` 既存に PROP-1, 4, 10 を追加
+- [x] `test/integration/observability.test.ts`(Phase 3 で作成、PROP-17)
+- [x] `test/integration/renderModeCli.test.ts`: `RENDERER_MODE=cli` でサーバ起動して既存 render 互換確認(PROP-16)
 
 ### F-3 unit test 補完
 
-- [ ] `test/unit/safeDeepMerge.test.ts`(Phase 0、PROP-12)
-- [ ] `test/unit/buildRequestMermaidConfig.test.ts`(Phase 0、PROP-3, 8)
-- [ ] `test/unit/extractMermaidError.test.ts`(Phase 0、PROP-5)
+- [x] `test/unit/safeDeepMerge.test.ts`(Phase 0、PROP-12)
+- [x] `test/unit/buildRequestMermaidConfig.test.ts`(Phase 0、PROP-3, 8)
+- [x] `test/unit/extractMermaidError.test.ts`(Phase 0、PROP-5)
 
 ### F-4 既存テストの互換確認
 
-- [ ] `test/inputValidator.test.ts` / `test/logger.test.ts` / `test/requestId.test.ts` は最小修正(または無修正)で green
-- [ ] `test/integration/rateLimitTimeout.test.ts` を新 `RATE_LIMIT_MAX_INFLIGHT` 前提に更新(PROP-13)
-- [ ] テストヘルパー `test/helpers/server.ts` を新 BrowserPool 前提に更新(`startTestServer()` が pool 初期化を待つ)
+- [x] `test/inputValidator.test.ts` / `test/logger.test.ts` / `test/requestId.test.ts` は最小修正(または無修正)で green
+- [x] `test/integration/rateLimitTimeout.test.ts` を新 `RATE_LIMIT_MAX_INFLIGHT` 前提に更新(PROP-13)
+- [x] テストヘルパー `test/helpers/server.ts` を新 BrowserPool 前提に更新(`startTestServer()` が pool 初期化を待つ)
 
 ### Phase 5 受入基準
 
-- [ ] `npm test` で全 green(unit + integration + property)
-- [ ] `grep -oE 'PROP-[0-9]+' test/ -r | sort -u | wc -l` が 17(全 PROP 検証コード存在)
-- [ ] AI 駆動テスト方針遵守: バイト一致比較 / 目視 visual diff を使うテストは存在しない(配布 HTML 最終確認の Phase 6 ゲートのみ目視を許容)
-- [ ] テスト実行時間が現状 +50% 以内(ベンチマーク的に許容範囲)
+- [x] `npm test` で全 green(unit + integration + property)
+- [x] `grep -oE 'PROP-[0-9]+' test/ -r | sort -u | wc -l` が 17(全 PROP 検証コード存在)
+- [x] AI 駆動テスト方針遵守: バイト一致比較 / 目視 visual diff を使うテストは存在しない(配布 HTML 最終確認の Phase 6 ゲートのみ目視を許容)
+- [x] テスト実行時間が現状 +50% 以内(ベンチマーク的に許容範囲)
 
 ### Phase 5 対象ファイル
 
