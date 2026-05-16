@@ -1,8 +1,8 @@
 # Issue draft: themeCSS `foreignObject` selector silently lowercased
 
-**Status**: Draft v2 (2026-05-16) — incorporates bisect to PR #7737 and develop-branch confirmation
+**Status**: Draft v2.1 (2026-05-16) — incorporates v2 + second-opinion review on v2 differential
 **Target**: New Bug Issue in `mermaid-js/mermaid` (not a comment on existing issues)
-**Decision basis**: `docs/expert-reviews/2026-05-16_mermaid-issue-final-review-best-practices.md`
+**Decision basis**: `docs/expert-reviews/2026-05-16_mermaid-issue-final-review-best-practices.md` and the second-opinion review applied below
 
 ---
 
@@ -24,9 +24,9 @@ In Mermaid 11.15.0, a commonly suggested workaround `themeCSS: ".label foreignOb
 
 Direct inspection of the generated SVG shows that the selector is emitted as lowercase `foreignobject` inside `<style>`, while the DOM nodes themselves keep the canonical `<foreignObject>` casing. Because CSS selector matching in the SVG/XML namespace is case-sensitive, the rule never matches in standalone mode. In inline SVG mode (rendered inside an HTML document), HTML's case-insensitive matching makes the rule work anyway — which is why this bug presents as "the #790 workaround works for me sometimes and not other times" across different embedding modes.
 
-I bisected this between releases: **11.14.0 preserves the selector casing, 11.15.0 lowercases it**, and the regression is still present on `develop` (build `v11.15.0+2a51ae4`) as of 2026-05-16. The most likely cause is PR #7737 ("fix: create CSS styles using the CSSOM" by @ashishjain0512, merged into 11.15.0), which switched the themeCSS pipeline from stylis to the CSSStyleSheet API. I have **not** done commit-level bisect inside PR #7737, so I am treating "PR #7737 is the cause" as the leading hypothesis from the timing and the nature of the change rather than as a verified fact.
+I bisected this between releases: **11.14.0 preserves the selector casing, 11.15.0 lowercases it**, and the regression is still present on `develop` (build `v11.15.0+2a51ae4`) as of 2026-05-16. The leading candidate is PR #7737 ("fix: create CSS styles using the CSSOM" by @ashishjain0512, merged into 11.15.0), which introduces a CSSOM-based step in the themeCSS construction path. The PR also includes related changes such as handling `&` in CSS namespacing, so it is not a wholesale replacement of stylis. I have **not** done a commit-level bisect inside PR #7737, so I am treating "PR #7737 is the cause" as the leading hypothesis based on the timing and the nature of the change rather than as a verified fact.
 
-I do not believe this is a security vulnerability; this report is about a functional regression in casing handling of themeCSS selectors. I noticed 11.15.0 includes CSS-injection hardening for the themeCSS pipeline (CVE-2026-41159 / -41148 / -41149) and want to be explicit this is a separate concern from those.
+To be clear, this is not a security report. Mermaid 11.15.0 also includes CSS-injection hardening in the themeCSS pipeline (CVE-2026-41159 / -41148 / -41149), so I want to be explicit that this report is about a separate functional regression — a regression in casing handling of themeCSS selectors, not a vulnerability.
 
 ### Steps to reproduce
 
@@ -63,7 +63,7 @@ I do not believe this is a security vulnerability; this report is about a functi
 
    On 11.15.0 you get **1** (lowercase, inside `<style>`) and **10** (PascalCase, all DOM nodes).
 
-5. Open `output.svg` directly in a browser (or embed it via `<img src="output.svg">`). Labels with edge-of-bounds text clip; the `overflow: visible` rule does not apply.
+5. Open `output.svg` directly in a browser (or embed it via `<img src="output.svg">`). Text at the edges of the labels is clipped; the `overflow: visible` rule does not apply.
 
 6. (Optional) Drop the same SVG into an inline-SVG HTML page. The labels do not clip, because HTML's case-insensitive selector matching saves the workaround.
 
@@ -77,9 +77,9 @@ I do not believe this is a security vulnerability; this report is about a functi
 | mermaid **11.15.0** (current latest release) |                       **1** |                           10 | `.label foreignobject{...}`       |
 | **develop** branch (v11.15.0+2a51ae4)        |                       **1** |                           10 | `.label foreignobject{...}`       |
 
-(Same `diagram.mmd` and `config.json` for all three; same Puppeteer/Chromium version for the two CLI runs; develop-branch row obtained from the Mermaid Live Editor develop site on 2026-05-16.)
+(Same `diagram.mmd` and `config.json` for all three. For the two CLI rows, only the Mermaid core version was changed; the same mermaid-cli/Puppeteer setup was used. The develop-branch row was obtained by downloading the SVG from the Mermaid Live Editor's develop deployment (`develop.git.mermaid.live`) on 2026-05-16; the Live Editor renders SVG with the same CSSOM-built `<style>` block as the CLI path — only the outer rendering context differs.)
 
-So:
+Summary:
 
 - 11.14.0 preserved the `foreignObject` PascalCase selector and the #790 workaround functioned correctly.
 - 11.15.0 lowercases the selector inside `<style>`.
@@ -114,11 +114,11 @@ This appears to explain the long-standing pattern where users report "the #790 w
 
 **What is bisected**: between Mermaid 11.14.0 and 11.15.0. With the same input, 11.14.0 emits `.label foreignObject{...}` (PascalCase preserved) and 11.15.0 emits `.label foreignobject{...}` (lowercased). The regression sits at this release boundary.
 
-**Leading hypothesis (not commit-level bisected)**: PR #7737 ("fix: create CSS styles using the CSSOM"), merged into 11.15.0, switched the themeCSS construction path to use the `CSSStyleSheet` API instead of stylis. That timing matches and the nature of the change is consistent with the observed lowercasing. An independent check of stylis alone (`compile() + stringify()`) did not reproduce the lowercasing, which is consistent with PR #7737 being the source rather than stylis. I have not run a commit-by-commit bisect inside PR #7737, so I am not claiming this PR is the cause with certainty.
+**Leading hypothesis (not commit-level bisected)**: PR #7737 ("fix: create CSS styles using the CSSOM"), merged into 11.15.0, introduces a CSSOM-based step in the themeCSS construction path (commit `37ff937`), alongside related changes such as handling `&` in CSS namespacing. The timing matches and the nature of the change is consistent with the observed lowercasing. An independent check of stylis alone (`compile() + stringify()`) did not reproduce the lowercasing, which is consistent with PR #7737 being the source rather than stylis. I have not run a commit-by-commit bisect inside PR #7737, so I am not claiming this PR is the cause with certainty.
 
-**Spec-level explanation (plausible mechanism, not instrumented)**: per [W3C CSSOM Module Level 1](https://www.w3.org/TR/cssom-1/) (serialize a selector), a CSS rule constructed via the `CSSStyleSheet` API has its type-selector identifier ASCII-lowercased when the host document is parsed as HTML. Puppeteer's Chromium parses its host document as HTML, so this normalization is in scope for any CSSOM-built selector in this context. That offers a clean explanation for `foreignObject` → `foreignobject`, but I have not instrumented Mermaid's runtime to confirm the lowercasing happens at exactly this step rather than at a neighbouring one.
+**Spec-level explanation (plausible mechanism, not instrumented)**: per [W3C Selectors Level 4](https://www.w3.org/TR/selectors-4/) (case sensitivity) and [W3C CSSOM Module Level 1](https://www.w3.org/TR/cssom-1/) (serialize a selector), HTML documents treat element type selectors as case-insensitive; when CSS is built via the `CSSStyleSheet` API in an HTML-hosted context, the resulting selector serialization is consistent with the lowercased form. Puppeteer's Chromium parses its host document as HTML, so this normalization is in scope for any CSSOM-built selector in this context. That offers a clean explanation for `foreignObject` → `foreignobject`, but I have not instrumented Mermaid's runtime to confirm the lowercasing happens at exactly this step rather than at a neighbouring one.
 
-A note on framing: the CSSOM lowercasing itself is spec-conformant browser behavior — not a Mermaid defect. The user-visible regression is that the documented behavior of the themeCSS workaround silently changed between 11.14.0 → 11.15.0.
+A note on framing: the CSSOM lowercasing itself is spec-conformant browser behavior — not a Mermaid defect. The user-visible regression is that a workaround shared in previous issues changed behavior silently between 11.14.0 and 11.15.0.
 
 ### Suggested fix direction
 
@@ -152,7 +152,7 @@ I am sharing this only as confirmation that the proposed direction is sound in p
 ### Pre-submission checks
 
 - Reproduced on Mermaid 11.15.0 (current latest release).
-- Bisected to PR #7737 by re-running with mermaid 11.14.0 + mermaid-cli 11.14.0 explicitly pinned: 11.14.0 preserves casing.
+- Release-bisected to the 11.14.0 → 11.15.0 boundary by re-running with mermaid 11.14.0 + mermaid-cli 11.14.0 explicitly pinned: 11.14.0 preserves casing. PR #7737 (merged into 11.15.0) is the leading hypothesis; not commit-level bisected.
 - Confirmed reproducible on `develop` branch via https://develop.git.mermaid.live as of 2026-05-16 (build `v11.15.0+2a51ae4`).
 - This is not the security hardening from CVE-2026-41159 / -41148 / -41149 (all three are patched in 11.15.0). This report is about a functional regression in casing handling, not a security issue.
 
@@ -170,7 +170,7 @@ I am sharing this only as confirmation that the proposed direction is sound in p
 
 **Historical context (not duplicates)**:
 
-- PR #445 (Jan 2017, merged by @knsv): "fix cli css style selector text lowercase problem". A similar class of bug was fixed in the CLI's `cloneCssStyles` path nine years ago. The current report concerns a different code path (themeCSS + CSSOM in v11.15.0), but it suggests this is a recurring class of bug that might benefit from a regression test guarding selector casing in generated SVG `<style>` blocks.
+- PR #445 (Jan 2017, merged by @knsv): "fix cli css style selector text lowercase problem". A similar selector-casing issue was fixed in the CLI's `cloneCssStyles` path nine years ago. The current report concerns a different code path (themeCSS + CSSOM in v11.15.0), but the recurrence may be worth noting when designing the fix.
 
 ### Note on a related but separate problem
 
@@ -208,7 +208,20 @@ Happy to provide additional traces, alternative configurations, or run targeted 
 - **Permalink commit updated** — `d607ee4` → `75bcb4d` (the verification commit that includes the new 11.14.0 and develop-branch artifacts).
 - **"For full context" softened** — `this report originated from` → `the verification artifacts ... live in a Mermaid-based rendering API project I maintain at` (factual framing).
 
-### What this draft v2 deliberately avoids
+### What v2.1 changed from v2 (second-opinion differential review)
+
+- **§3.6 internal consistency fix (required)** — `Bisected to PR #7737` → `Release-bisected to the 11.14.0 → 11.15.0 boundary` + explicit note that PR #7737 is a leading hypothesis, not commit-level bisected. Aligns the Pre-submission checks line with the §3.3 Cause analysis framing.
+- **§3.1 CVE wording firmness** — `I do not believe this is a security vulnerability` → `To be clear, this is not a security report` (avoids the non-native reading of "I do not believe" as report-author uncertainty); also fixed `want to be explicit this is` → `want to be explicit that this is`.
+- **§3.2 / §3.3 PR #7737 description precision** — `switched the themeCSS pipeline from stylis to the CSSStyleSheet API` → `introduces a CSSOM-based step in the themeCSS construction path`, with an added note that PR #7737 includes related stylis-touching changes (e.g. `&` namespacing), so it is not a wholesale replacement. Avoids overclaim about the internals of PR #7737.
+- **§3.3 CSSOM mechanism precision** — added W3C Selectors Level 4 (case sensitivity) alongside CSSOM Module Level 1; reframed the lowercasing as the result of HTML's case-insensitive type-selector treatment that CSSOM then serializes, not as something CSSOM serialization itself produces.
+- **§3.3 closing line softened** — `the documented behavior of the themeCSS workaround silently changed` → `a workaround shared in previous issues changed behavior silently` (avoids implying the workaround is officially documented).
+- **§3.7 PR #445 framing softened** — `recurring class of bug that might benefit from a regression test guarding selector casing` → `the recurrence may be worth noting when designing the fix` (less prescriptive; leaves the choice of mitigation entirely to the maintainer).
+- **§3.4 register fix** — `So:` → `Summary:` (more formal register matching surrounding prose).
+- **§3.5 step 5 phrasing** — `Labels with edge-of-bounds text clip` → `Text at the edges of the labels is clipped` (more natural English).
+- **§3.2 collocation** — `the leading hypothesis from the timing and the nature of the change` → `the leading hypothesis based on the timing and the nature of the change`.
+- **§3.4 caveat expanded** — `same Puppeteer/Chromium version for the two CLI runs` made explicit and extended to clarify how the develop-branch row was obtained (downloaded from `develop.git.mermaid.live`), pre-empting a likely maintainer question.
+
+### What this draft v2.1 deliberately avoids
 
 - **No PR.** The decision tree on direction (attribute vs. CSS-pipeline fix) is given to the maintainer.
 - **No links to Japanese-only internal docs.** All references the maintainer might click are language-agnostic (SVG file blobs).
@@ -216,6 +229,7 @@ Happy to provide additional traces, alternative configurations, or run targeted 
 
 ### Next steps before posting
 
-1. ~~Second-opinion review across multiple AIs~~ — done. See `docs/expert-reviews/2026-05-16_mermaid-issue-final-review-best-practices.md`.
-2. User final approval.
-3. `gh issue create --repo mermaid-js/mermaid --title "..." --body-file <body file>` once approved.
+1. ~~Second-opinion review across multiple AIs (v1)~~ — done. See `docs/expert-reviews/2026-05-16_mermaid-issue-final-review-best-practices.md`.
+2. ~~Second-opinion differential review on v2 → v2.1~~ — done. Three reviewers (O / A / G) all judged "post as is" or "post after minor edits"; all minor edits are reflected above.
+3. User final approval.
+4. `gh issue create --repo mermaid-js/mermaid --title "..." --body-file <body file>` once approved.
