@@ -190,6 +190,8 @@ npm run test
 4. **リポジトリ削除禁止**: 同上。
 5. **大規模再構成時は事前に検討**: 仮にリポジトリ全体の再構成が必要になった場合は、(a) 元の commit を残したまま新構成で別ブランチを切る、(b) GitHub の Wayback Machine / Software Heritage に事前アーカイブを取る、等の代替を検討してから実施する。
 
-### 参考: 投稿された Issue
+### 投稿された Issue
 
-投稿された Mermaid 公式 Issue の URL は本 README 内に固定リンクするのを避け(Issue 番号が変わる可能性に備える)、`docs/issue-drafts/2026-05-16_mermaid-themecss-lowercase-bug.md` のドラフト内 Notes に投稿後の Issue 番号を追記する運用とします。
+- [mermaid-js/mermaid#7759](https://github.com/mermaid-js/mermaid/issues/7759) — `[Bug] themeCSS lowercases foreignObject selector, breaking SVG workaround in standalone mode`(2026-05-16 投稿、初期ラベル `Status: Triage`)
+
+ドラフト本体と投稿経緯は `docs/issue-drafts/2026-05-16_mermaid-themecss-lowercase-bug.md` を参照してください。

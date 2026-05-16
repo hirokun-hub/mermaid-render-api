@@ -1,6 +1,8 @@
 # Issue draft: themeCSS `foreignObject` selector silently lowercased
 
-**Status**: Draft v2.1 (2026-05-16) — incorporates v2 + second-opinion review on v2 differential
+**Status**: **Posted as `mermaid-js/mermaid#7759`** on 2026-05-16
+**Posted URL**: https://github.com/mermaid-js/mermaid/issues/7759
+**Source draft**: v2.1 (2026-05-16) — incorporates v2 + second-opinion review on v2 differential
 **Target**: New Bug Issue in `mermaid-js/mermaid` (not a comment on existing issues)
 **Decision basis**: `docs/expert-reviews/2026-05-16_mermaid-issue-final-review-best-practices.md` and the second-opinion review applied below
 
@@ -227,9 +229,15 @@ Happy to provide additional traces, alternative configurations, or run targeted 
 - **No links to Japanese-only internal docs.** All references the maintainer might click are language-agnostic (SVG file blobs).
 - **No issue brigading.** Related issues are listed with relationship explained, not piled on as duplicates.
 
-### Next steps before posting
+### Posting timeline
 
 1. ~~Second-opinion review across multiple AIs (v1)~~ — done. See `docs/expert-reviews/2026-05-16_mermaid-issue-final-review-best-practices.md`.
 2. ~~Second-opinion differential review on v2 → v2.1~~ — done. Three reviewers (O / A / G) all judged "post as is" or "post after minor edits"; all minor edits are reflected above.
-3. User final approval.
-4. `gh issue create --repo mermaid-js/mermaid --title "..." --body-file <body file>` once approved.
+3. ~~User final approval~~ — granted 2026-05-16.
+4. ~~`gh issue create --repo mermaid-js/mermaid --title "..." --body-file <body file>`~~ — posted 2026-05-16T12:24:06Z as **mermaid-js/mermaid#7759** (initial label: `Status: Triage`).
+
+### Post-submission watchpoints
+
+- Watch for `Status: Triage` → `Status: Approved` transition over the next 24-48 hours. If the label has not moved after 48 hours and there is no maintainer comment, a single one-time bump comment is acceptable; multiple bumps are not.
+- If a maintainer asks for a PR direction (SVG attribute injection vs. CSSOM-pipeline fix), respond with the preference stated in the Issue body and request guidance before opening a PR.
+- If a maintainer flags this as a duplicate of an existing issue, surface the new evidence (release-level bisect to 11.14.0 → 11.15.0 boundary, develop-branch confirmation) that distinguishes this report.
