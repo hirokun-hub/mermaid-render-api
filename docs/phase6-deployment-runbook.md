@@ -102,10 +102,13 @@ grep "ゲート結論" docs/perf/YYYY-MM-DD_compare.md
 
 # 3. 本番 (3100) のイメージタグを改修版と同じタグに書き換える
 #    docker compose build mermaid-render-api でも同等
-docker compose build mermaid-render-api
+#    本番運用は Windows Docker Desktop 前提のため overlay 必須 (requirements.md C-P-09)
+docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml \
+  build mermaid-render-api
 
 # 4. ローリング再起動 (コンテナ ID 入れ替え)
-docker compose up -d mermaid-render-api
+docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml \
+  up -d mermaid-render-api
 
 # 5. 疎通確認
 curl -s -o /dev/null -w "/livez=%{http_code}\n"   http://localhost:3100/livez    # 200
@@ -154,8 +157,11 @@ done
 $EDITOR docker-compose.yml
 
 # 2. 旧 image で再生成 (ローリング再起動)
-docker compose stop mermaid-render-api
-docker compose up -d --no-build mermaid-render-api
+#    本番運用は Windows Docker Desktop 前提のため overlay 必須 (requirements.md C-P-09)
+docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml \
+  stop mermaid-render-api
+docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml \
+  up -d --no-build mermaid-render-api
 
 # 3. 疎通確認
 curl -s -o /dev/null -w "/livez=%{http_code}\n" http://localhost:3100/livez

@@ -80,10 +80,10 @@
 **追記推奨フレーズ**(Issue 本文 "Additional Context" 等に 1 行):
 
 ```
-I do not believe this is a security vulnerability; this report is about a 
-functional regression in casing handling of themeCSS selectors. I noticed 
-11.15.0 includes CSS-injection hardening (CVE-2026-41159 / -41148 / -41149) 
-in the same themeCSS pipeline, and want to be explicit this is a separate 
+I do not believe this is a security vulnerability; this report is about a
+functional regression in casing handling of themeCSS selectors. I noticed
+11.15.0 includes CSS-injection hardening (CVE-2026-41159 / -41148 / -41149)
+in the same themeCSS pipeline, and want to be explicit this is a separate
 concern from those.
 ```
 

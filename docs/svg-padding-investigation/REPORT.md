@@ -26,8 +26,8 @@
 
 ## 2. ビジュアルギャラリー(各ケースの実出力)
 
-> 左 = **SVG**(コンシューマ側ブラウザで描画される姿。GitHub 上では GitHub のフォントで描画される=Noto Sans CJK JP は基本無し)  
-> 右 = **PNG**(サーバ rasterize 結果。Noto Sans CJK JP で描画。"見た目の正解"側)  
+> 左 = **SVG**(コンシューマ側ブラウザで描画される姿。GitHub 上では GitHub のフォントで描画される=Noto Sans CJK JP は基本無し)
+> 右 = **PNG**(サーバ rasterize 結果。Noto Sans CJK JP で描画。"見た目の正解"側)
 >
 > 両者の差 = フォント不在時のコンシューマ環境での実害イメージ
 

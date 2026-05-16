@@ -26,20 +26,21 @@ npm run start
 cp .env.example .env
 ```
 
-2) 標準起動（安全寄り）
-```bash
-docker compose up --build -d
-```
-
-3) Docker Desktop / WSL で起動しない場合
-
-Docker Desktop や Docker Desktop 経由の WSL では、Chromium sandbox が隔離部屋（namespace / chroot）を作れず、コンテナが restart loop になることがあります。この場合のみ、ローカル開発用の臨時許可証（capability overlay）を併用します。
+2) 標準起動（Windows Docker Desktop 本番・開発共通）
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml up --build -d
 ```
 
-`docker-compose.dev-sysadmin.yml` は Docker Desktop fallback 専用です。本番標準構成として `SYS_ADMIN` / `SYS_CHROOT` を付与しないでください。本番相当の Linux 環境では、実行基盤側の seccomp / AppArmor / user namespace 設定で Chromium sandbox が通ることを確認してください。
+本番運用は Windows Docker Desktop を前提とします（`requirements.md` C-P-09）。Docker Desktop は LinuxKit VM 経由で動作するため、Chromium sandbox が隔離部屋（namespace / chroot）を作るために `SYS_ADMIN` / `SYS_CHROOT` capability を追加する `docker-compose.dev-sysadmin.yml` overlay の併用が必須です。overlay を外して `docker compose up` のみで起動すると、コンテナが restart loop になります（`Failed to move to new namespace ... Operation not permitted`）。
+
+3) Linux 直接ホスト（ベアメタル / 非 Docker Desktop の Linux サーバ）の場合のみ
+
+```bash
+docker compose up --build -d
+```
+
+Linux 直接ホストでは user namespace が利用可能なため overlay 不要です。ただし本リポジトリの本番運用範囲は Windows Docker Desktop のみで、Linux 直接ホスト向けの seccomp / AppArmor 設定は提供していません。Linux 本番運用を行う場合は、実行基盤側で Chromium sandbox が通ることを別途検証してください。
 
 4) 動作確認
 ```bash
@@ -53,16 +54,10 @@ curl -i -X POST http://localhost:3100/render \
 
 ## WSL での起動
 
-WindowsでDocker Desktopを有効化し、対象のWSLディストリで以下を実行します。
+WindowsでDocker Desktopを有効化し、対象のWSLディストリで以下を実行します。WSL から Docker Desktop を呼び出している場合も実体は Windows Docker Desktop (LinuxKit VM) なので、本番と同じ overlay 併用が必須です。
 
 ```bash
 cp .env.example .env
-docker compose up --build -d
-```
-
-WSL でも Docker Desktop 経由で実行している場合は、標準起動で Chromium sandbox の権限エラーが出ることがあります。その場合は Docker Desktop と同じく、開発用 overlay を併用してください。
-
-```bash
 docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml up --build -d
 ```
 
@@ -87,11 +82,11 @@ Phase 4.5 時点では、production dependency の critical / high advisory を 
 
 ## Chromium sandbox運用
 
-本番では `--no-sandbox` と `cap_add: SYS_ADMIN` を標準構成にしません。非root実行、`chromium-sandbox`、`tini`、read-only filesystem、tmpfs、PID/メモリ制限を前提にし、Linux本番相当環境ではChrome向けcustom seccomp / AppArmor / user namespace設定を検証してください。
+本番運用 (Windows Docker Desktop) では `--no-sandbox` を使用せず、`docker-compose.dev-sysadmin.yml` overlay で `SYS_ADMIN` / `SYS_CHROOT` capability を追加して Chromium 自身の Linux namespace sandbox を有効化します。非root実行、`chromium-sandbox`、`tini`、read-only filesystem、tmpfs、PID/メモリ制限はベース構成 (`docker-compose.yml`) で固定されており、overlay はそれらを維持したまま sandbox 起動に必要な最小権限のみを追加します（`requirements.md` C-P-09、`design.md` §8.1 参照）。
 
-日常語で言うと、標準構成は「安全な厨房（Chromium sandbox）で調理する」方針です。Docker Desktop で標準起動できない場合の overlay は「ローカル開発用の臨時入室許可証（追加 capability）」です。便利ですが、本番で常用するものではありません。
+日常語で言うと、Windows Docker Desktop は「Linux VM の上の Docker」という二重構造で、その VM が Chromium sandbox の隔離部屋作成に必要な権限を絞っているため、Chromium 側にだけピンポイントで「隔離部屋を作っていい」許可証 (`SYS_ADMIN` / `SYS_CHROOT`) を渡す方針です。`--no-sandbox` で sandbox を無効化するより、必要権限を最小付与して sandbox 有効のまま動かす方が安全です。
 
-`--no-sandbox` は現在の標準運用には含めません。ローカル / Tailscale 内利用でも、外部入力の Mermaid を Chromium で処理するため、可能な限り sandbox 有効のまま運用してください。
+`--no-sandbox` は現在の標準運用には含めません。ローカル / Tailscale 内利用でも、外部入力の Mermaid を Chromium で処理するため、sandbox 有効のまま運用してください。
 
 ## フォント
 
@@ -121,14 +116,14 @@ ports:
 
 ### Docker Desktop でコンテナが Restarting になる
 
-`docker compose ps` で `Restarting` と表示され、ログに以下のようなエラーが出る場合があります。
+通常は前述の overlay 込み起動コマンドを使うため発生しませんが、誤って overlay を外して `docker compose up` のみで起動すると `docker compose ps` で `Restarting` と表示され、ログに以下のエラーが出ます。
 
 ```text
 Failed to move to new namespace ... Operation not permitted
 FATAL:zygote_host_impl_linux.cc
 ```
 
-これはアプリ本体の起動失敗ではなく、Chromium sandbox が隔離部屋（namespace）を作る権限を Docker Desktop からもらえない状態です。ローカル開発では Docker Desktop 用 overlay を重ねて起動してください。
+これは Chromium sandbox が隔離部屋（namespace）を作る権限を Docker Desktop からもらえない状態です。標準の overlay 込みコマンドで起動し直してください。
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml up --build -d
@@ -144,17 +139,17 @@ curl -i -X POST http://localhost:3100/render \
   -d '{"code":"graph TD\nA-->B","format":"svg"}'
 ```
 
-この overlay はローカル Docker Desktop fallback 用です。本番で同じエラーが出る場合は、overlay を入れるのではなく、実行基盤側の seccomp / AppArmor / user namespace 設定を見直してください。
-
 ## 現在の確認済み状態
 
-Phase 4.5 時点の確認済み状態です。
+Phase 6 時点の確認済み状態です。
 
 - `npm run build`: pass
-- `npm test`: 31 files / 140 tests pass
+- `npm test`: 51 files / 200 tests pass
 - `npm audit --omit=dev --audit-level=high`: pass
 - `docker compose build`: pass
-- Docker Desktop では `docker-compose.dev-sysadmin.yml` 併用で `/healthz` / `/readyz` / `/livez` / `/render` SVG smoke が 200
+- Windows Docker Desktop で `docker-compose.dev-sysadmin.yml` 併用起動下、`/healthz` / `/readyz` / `/livez` / `/render` SVG smoke が 200
+- 性能 NFR-01 (単純 flowchart p50 ≤ 500ms): PASS (after p50 = 419.7ms、`docs/perf/2026-05-16_compare.md` 参照)
+- 切替後 5 分監視: PASS (`docs/phase6-deployment-verification/5min-monitoring-2026-05-16.md` 参照)
 
 ## テスト
 
