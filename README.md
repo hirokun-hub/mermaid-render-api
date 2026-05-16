@@ -161,3 +161,35 @@ Phase 4.5 時点の確認済み状態です。
 ```bash
 npm run test
 ```
+
+## 外部参照されているファイル(削除・改名・force push 禁止)
+
+以下のファイルおよびディレクトリは、**外部の公開 Issue / 公開ドキュメントから commit hash 固定で永続リンクされている**ため、削除・改名・該当 commit を消す force push を行ってはなりません。Mermaid 公式リポジトリのメンテナ調査やコミュニティ参照が壊れます。
+
+### Mermaid 公式リポジトリの Issue から参照されているファイル
+
+参照元: `mermaid-js/mermaid` の新規 Bug Issue(themeCSS `foreignObject` selector silently lowercased、2026-05-16 投稿)
+
+固定 commit: `75bcb4d`
+
+| パス | 役割 |
+|---|---|
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-with-themeCSS.svg` | 11.15.0 + themeCSS 設定下の生成 SVG(根拠データ) |
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-no-themeCSS.svg` | 11.15.0 themeCSS 未設定のコントロール SVG |
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-with-themeCSS-mermaid11140.svg` | 11.14.0(PR #7737 取込前)+ themeCSS 設定下の比較 SVG |
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-no-themeCSS-mermaid11140.svg` | 11.14.0 コントロール SVG |
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-with-themeCSS-develop-2026-05-16.svg` | Mermaid develop ブランチ(`v11.15.0+2a51ae4`)再現確認 SVG |
+
+これらの SVG は Mermaid メンテナが直接ブラウザで開いて `<style>` 要素内のセレクタを検証する根拠資料として参照されています。
+
+### 運用ルール
+
+1. **削除・改名禁止**: ファイルパス・ファイル名・ディレクトリ名を変更しない。
+2. **force push 禁止**: commit `75bcb4d` を含む履歴を書き換える force push(`git push -f` / `git reset --hard` 後の push 等)を行わない。投稿済み Issue から参照される permalink が壊れます。
+3. **リポジトリ非公開化禁止**: 本リポジトリを private に変更すると外部リンクが全て壊れます。
+4. **リポジトリ削除禁止**: 同上。
+5. **大規模再構成時は事前に検討**: 仮にリポジトリ全体の再構成が必要になった場合は、(a) 元の commit を残したまま新構成で別ブランチを切る、(b) GitHub の Wayback Machine / Software Heritage に事前アーカイブを取る、等の代替を検討してから実施する。
+
+### 参考: 投稿された Issue
+
+投稿された Mermaid 公式 Issue の URL は本 README 内に固定リンクするのを避け(Issue 番号が変わる可能性に備える)、`docs/issue-drafts/2026-05-16_mermaid-themecss-lowercase-bug.md` のドラフト内 Notes に投稿後の Issue 番号を追記する運用とします。
