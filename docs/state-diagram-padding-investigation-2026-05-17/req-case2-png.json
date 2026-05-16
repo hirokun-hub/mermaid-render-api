@@ -1,0 +1,1 @@
+{"code": "stateDiagram-v2\n  [*] --> S1\n  S1 --> S2: trigger\n  S2 --> S3\n  S3 --> [*]\n  state S2 {\n    a --> b\n  }\n", "format": "png"}

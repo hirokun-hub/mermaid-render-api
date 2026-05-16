@@ -1,0 +1,1 @@
+{"code": "stateDiagram-v2\n  [*] --> \u96c6\u3081\u308b \u2713<br>(PrimeDrive \u81ea\u52d5)\n  \u96c6\u3081\u308b \u2713<br>(PrimeDrive \u81ea\u52d5) --> \u6574\u7406\u3059\u308b<br>(\u624b\u52d5 + \u2713)\n  \u6574\u7406\u3059\u308b<br>(\u624b\u52d5 + \u2713) --> [*]\n", "format": "png"}
