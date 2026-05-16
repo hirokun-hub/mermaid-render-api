@@ -720,7 +720,7 @@
 ### Phase 6 受入基準
 
 - [x] G-3 ゲート通過(NFR-01 単純 flowchart p50 ≤ 500ms)(after p50 = 419.7ms / 80% 安全マージン)
-- [ ] 切替後 5 分監視で異常なし(本番切替は運用者判断、runbook §4.2 に手順整備済 — Phase 6 MVP では未実施)
+- [x] 切替後 5 分監視で異常なし(2026-05-16、test サービス 3101 で実施: 60req/5min 成功率 100%、`render_total` +60、`browser_restarts_total` 増加なし、`render_timeout_total` 0 維持、`browser_pool_in_use` < `POOL_QUEUE_MAX=20`。`docs/phase6-deployment-verification/5min-monitoring-2026-05-16.md` 参照)
 - [x] ロールバック試走成功(2026-05-16、test サービスで実施)
 - [x] `docs/perf/` に before / after / compare の 3 ファイルがコミットされている(`2026-05-16_before_steady.json` / `2026-05-16_after_steady.json` / `2026-05-16_compare.md`。100 並列 burst 計測も `2026-05-16_before.json` / `2026-05-16_after.json` として併存)
 - [x] 配布 HTML embed 最終目視で clip / max-width 干渉 / 余白 3 課題が解消(`docs/phase6-deployment-verification/case10_img_mode.png` 参照)

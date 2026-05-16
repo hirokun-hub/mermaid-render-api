@@ -19,9 +19,9 @@
 | G-4.1 切替手順 runbook | ✅ 整備済 (`docs/phase6-deployment-runbook.md`) |
 | G-4.2 ロールバック試走 | ✅ 成功 (test サービスで実施) |
 | G-4.3 配布 HTML embed 目視 | ✅ クリップなし (`case10_img_mode.png`) |
-| 残課題 | 切替後 5 分監視 (本番切替後にのみ実施可) |
+| 切替後 5 分監視 | ✅ 完了 (2026-05-16、test サービス 3101 で実施、`5min-monitoring-2026-05-16.md`) |
 
-**ゲート結論**: Phase 6 受入基準のうち本番切替依存項目を除き全て充足。**MVP 観点では Phase 6 完了**として扱える。
+**ゲート結論**: Phase 6 受入基準 4 項目すべて充足 (G-3 ゲート / 5 分監視 / ロールバック試走 / 配布 HTML 目視)。**Phase 6 完了**。
 
 ---
 
@@ -268,7 +268,7 @@ SVG root に max-width 属性なし → useMaxWidth:false 効果 (US-04)
 
 | ID | 内容 | 理由 / 実施タイミング |
 |---|---|---|
-| **R-1** | Phase 6 受入「切替後 5 分監視で異常なし」 | 本番切替は運用者判断。runbook §4.2 に bash one-liner つきで手順整備済。**本番切替実施後に Phase 6 検証レポート v2 として追記する**。 |
+| ~~**R-1**~~ | ~~Phase 6 受入「切替後 5 分監視で異常なし」~~ | **完了 (2026-05-16)**: test サービス 3101 で 5 分監視実施、4 指標すべて PASS。詳細は `phase6-deployment-verification/5min-monitoring-2026-05-16.md`。 |
 | **R-2** | ~~Phase 4 受入「Linux 本番相当環境で `SYS_ADMIN` なし + custom seccomp / AppArmor / user namespace smoke test」~~ | **N/A**: 本番 = Windows Docker Desktop のため適用外 (2026-05-17 決定、requirements.md C-P-09 2026-05-17 運用注記参照)。Linux 直接ホスト運用が将来発生した場合に再開する。 |
 | **R-3** | `docs/perf/` の git commit | 本レポートを含む Phase 6 成果物の commit はユーザー判断。`investigate/svg-node-padding` ブランチへの追加コミット予定。 |
 
