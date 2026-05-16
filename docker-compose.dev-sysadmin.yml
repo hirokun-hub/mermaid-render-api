@@ -1,9 +1,14 @@
-# Docker Desktop fallback only.
-# Use this overlay when Chromium sandbox startup fails with namespace
-# permission errors under local Docker Desktop. Do not use as the
-# production baseline.
+# Windows Docker Desktop 本番運用 + 開発環境 共通の追加権限 overlay。
+# 本 API の本番運用環境 = Windows Docker Desktop では Chromium sandbox の
+# namespace / chroot 作成に SYS_ADMIN / SYS_CHROOT が必要なため、dev/prod
+# 共通で常時適用する (requirements.md C-P-09 2026-05-17 運用注記参照)。
+# Linux 直接ホスト運用が将来発生した場合は SYS_ADMIN なし構成への移行を再評価する。
 services:
   mermaid-render-api:
+    cap_add:
+      - SYS_ADMIN
+      - SYS_CHROOT
+  mermaid-render-api-test:
     cap_add:
       - SYS_ADMIN
       - SYS_CHROOT

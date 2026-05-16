@@ -9,7 +9,9 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
-    "start": "node dist/server/server.js"
+    "start": "node dist/server/server.js",
+    "perf:check": "tsx scripts/perf-check.ts",
+    "perf:compare": "tsx scripts/perf-compare.ts"
   },
   "repository": {
     "type": "git",
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@types/node": "^25.0.3",
     "fast-check": "^3.23.2",
+    "tsx": "^4.22.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },

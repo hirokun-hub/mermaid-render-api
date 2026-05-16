@@ -407,7 +407,7 @@
 - [x] `vitest run` で既存 integration test が全 green(後方互換)
 - [x] PROP-1, 2, 4, 7, 10, 16 が green
 - [x] Docker Desktop dev overlay 併用で `docker compose build` 成功 + `docker compose up -d` 起動後に `curl /livez` 200、`curl /readyz` 200
-- [ ] Linux 本番相当環境で `SYS_ADMIN` なし + custom seccomp / AppArmor / user namespace 状態記録つき smoke test を実施
+- [x] ~~Linux 本番相当環境で `SYS_ADMIN` なし + custom seccomp / AppArmor / user namespace 状態記録つき smoke test を実施~~ → **N/A**: 本番 = Windows Docker Desktop のため適用外 (2026-05-17 決定、requirements.md C-P-09 2026-05-17 運用注記参照)。Linux 直接ホスト運用が将来発生した場合に再開する。
 - [x] `curl /healthz` は維持(既存クライアント互換)
 - [x] `npm ci` で lock 同期、`@mermaid-js/mermaid-cli` の `package.json` 表記が exact pin(caret/tilde 無し)
 
@@ -673,57 +673,57 @@
 
 ### G-1 test profile 構築(P-13)
 
-- [ ] `docker-compose.yml` に `profiles: ["test"]` でテストサービス追加(ホストポート 3101 → コンテナ 3000)
-- [ ] `.env.test` 作成: `MERMAID_PADDING=0`、`RENDERER_MODE=programmatic`、その他改修側既定値
-- [ ] prod(3100) は無停止で稼働継続、test(3101) を `docker compose --profile test up -d` で起動
-- [ ] test サービスで `curl http://localhost:3101/livez` 200 確認
+- [x] `docker-compose.yml` に `profiles: ["test"]` でテストサービス追加(ホストポート 3101 → コンテナ 3000)
+- [x] `.env.test` 作成: `MERMAID_PADDING=0`、`RENDERER_MODE=programmatic`、その他改修側既定値
+- [x] prod(3100) は無停止で稼働継続、test(3101) を `docker compose --profile test up -d` で起動(本番 = Windows Docker Desktop のため `-f docker-compose.dev-sysadmin.yml` overlay は dev / prod 共通で必須適用)
+- [x] test サービスで `curl http://localhost:3101/livez` 200 確認(2026-05-16: `/livez` `/healthz` `/readyz` `/metrics` 全 200)
 
 ### G-2 性能計測スクリプト(P-14)
 
-- [ ] `scripts/perf-check.ts` 新規:
-  - [ ] CLI 引数: `--target=http://localhost:3100` / `--concurrency=100` / `--iterations=5` / `--label=before|after`
-  - [ ] 単純 flowchart(ノード 5 個以下)と複雑 flowchart(ノード 20 個)の 2 シナリオを実行
-  - [ ] p50, p95, p99 レイテンシ / 成功率 / Puppeteer プロセス数(`ps aux | grep chrome`) / メモリ RSS を計測
-  - [ ] 結果を JSON で `docs/perf/YYYY-MM-DD_<label>.json` に保存
-- [ ] `scripts/perf-compare.ts` 新規: before / after JSON を読んで差分 Markdown を `docs/perf/YYYY-MM-DD_compare.md` 出力
+- [x] `scripts/perf-check.ts` 新規:
+  - [x] CLI 引数: `--target=http://localhost:3100` / `--concurrency=100` / `--iterations=5` / `--label=before|after`(npm script `perf:check` 経由で実行)
+  - [x] 単純 flowchart(ノード 5 個以下)と複雑 flowchart(ノード 20 個)の 2 シナリオを実行
+  - [x] p50, p95, p99 レイテンシ / 成功率 / Puppeteer プロセス数(`ps -e -o comm= | grep chrome|chromium|headless`) / メモリ RSS(localhost 限定で `ss -ltnp + ps -o rss`)を計測
+  - [x] 結果を JSON で `docs/perf/YYYY-MM-DD_<label>.json` に保存
+- [x] `scripts/perf-compare.ts` 新規: before / after JSON を読んで差分 Markdown を `docs/perf/YYYY-MM-DD_compare.md` 出力(NFR-01 ゲート判定 + シナリオ別表 + 5 分監視ポイント込み)
 
 ### G-3 NFR-01 達成判定
 
-- [ ] before: prod(3100、現状 mmdc subprocess)で `perf-check.ts --label=before`
-- [ ] after: test(3101、Programmatic API)で `perf-check.ts --label=after`
-- [ ] **ゲート条件**: after の単純 flowchart 定常状態 p50 ≤ 500ms(NFR-01)
-- [ ] 達成: G-4 へ進む
-- [ ] 未達: Phase 1 / Phase 3 に戻して原因分析、再計測
-- [ ] 結果を `docs/perf/2026-MM-DD_perf-check.md` にコミット(印象論排除の根拠保存)
+- [x] before: prod(3100、現状 mmdc subprocess)で `perf-check.ts --label=before_steady`(2026-05-16、`docs/perf/2026-05-16_before_steady.json`)
+- [x] after: test(3101、Programmatic API)で `perf-check.ts --label=after_steady`(2026-05-16、`docs/perf/2026-05-16_after_steady.json`)
+- [x] **ゲート条件**: after の単純 flowchart 定常状態 p50 ≤ 500ms(NFR-01)→ **PASS**(after p50 = 419.7ms、before p50 = 2564.8ms、−83.6% 改善)
+- [x] 達成: G-4 へ進む
+- [x] 未達: Phase 1 / Phase 3 に戻して原因分析、再計測(N/A — 初回計測で PASS)
+- [x] 結果を `docs/perf/2026-05-16_compare.md` にコミット(印象論排除の根拠保存)
 
 ### G-4 切替 + ロールバック(P-15)
 
-- [ ] **切替手順**:
+- [x] **切替手順**(`docs/phase6-deployment-runbook.md` §4.1 として整備、本番切替は運用者判断で実行):
   1. `docker compose --profile test up -d` で test 起動 + ヘルスチェック通過確認
   2. perf-check.ts ゲート通過確認
   3. prod イメージタグを test と同タグに更新
   4. `docker compose up -d` でローリング再起動(コンテナ ID 入れ替え)
   5. `curl /livez` `/readyz` `/metrics` で疎通確認
-- [ ] **5 分監視ポイント**:
+- [x] **5 分監視ポイント**(`docs/phase6-deployment-runbook.md` §4.2 に bash one-liner つきで整備):
   - `render_total{result="ok"}` カウンタ増加(リクエスト流入確認)
   - `render_timeout_total` 急増なし
   - `browser_restarts_total` 安定(初期 +1〜2 のみ、以降増えない)
   - `browser_pool_in_use` がピーク時も `POOL_QUEUE_MAX` 未満
-- [ ] **ロールバック手順**:
+- [x] **ロールバック手順**(`docs/phase6-deployment-runbook.md` §5.1):
   1. 直前 image tag を `docker-compose.yml` に戻す
   2. `docker compose up -d`
   3. `curl /livez` 200 確認
   4. 状態なし(stateless)を利用、データ復旧不要
-- [ ] ロールバック手順を **1 度試走**(prod 影響なし、test サービスで試す)
-- [ ] 配布 HTML embed の最終目視確認 1 回(memory: AI 駆動テスト中心方針の唯一の例外、本ゲートでのみ実施)
+- [x] ロールバック手順を **1 度試走**(prod 影響なし、test サービスで試す)(2026-05-16: rollback tag 保存 → stop → 再起動 → `/livez`/`/readyz` 200 + `/render` 200 size=15500 を確認)
+- [x] 配布 HTML embed の最終目視確認 1 回(memory: AI 駆動テスト中心方針の唯一の例外、本ゲートでのみ実施)(2026-05-16: `docs/phase6-deployment-verification/case10_img_mode.png` で Case 10 の Node A「集める ✓(PrimeDrive 自動)」・Node B「整理する(手動 + ✓)」のテキストが完全表示、`)` クリップなしを確認)
 
 ### Phase 6 受入基準
 
-- [ ] G-3 ゲート通過(NFR-01 単純 flowchart p50 ≤ 500ms)
-- [ ] 切替後 5 分監視で異常なし
-- [ ] ロールバック試走成功
-- [ ] `docs/perf/` に before / after / compare の 3 ファイルがコミットされている
-- [ ] 配布 HTML embed 最終目視で clip / max-width 干渉 / 余白 3 課題が解消
+- [x] G-3 ゲート通過(NFR-01 単純 flowchart p50 ≤ 500ms)(after p50 = 419.7ms / 80% 安全マージン)
+- [ ] 切替後 5 分監視で異常なし(本番切替は運用者判断、runbook §4.2 に手順整備済 — Phase 6 MVP では未実施)
+- [x] ロールバック試走成功(2026-05-16、test サービスで実施)
+- [x] `docs/perf/` に before / after / compare の 3 ファイルがコミットされている(`2026-05-16_before_steady.json` / `2026-05-16_after_steady.json` / `2026-05-16_compare.md`。100 並列 burst 計測も `2026-05-16_before.json` / `2026-05-16_after.json` として併存)
+- [x] 配布 HTML embed 最終目視で clip / max-width 干渉 / 余白 3 課題が解消(`docs/phase6-deployment-verification/case10_img_mode.png` 参照)
 
 ### Phase 6 対象ファイル
 

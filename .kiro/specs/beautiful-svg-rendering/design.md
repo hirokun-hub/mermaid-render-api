@@ -778,7 +778,7 @@ services:
 
 `profiles: ['test']` により、通常の `docker compose up` では起動せず、検証時のみ起動する。
 
-Docker Desktop で Chromium sandbox の namespace / chroot 作成が拒否される場合は、開発用 overlay compose でのみ `SYS_ADMIN` / `SYS_CHROOT` を一時付与する。本番標準構成では `SYS_ADMIN` を付与せず、Linux 本番相当環境で custom seccomp / AppArmor / user namespace 状態を記録した smoke test を別途実施する。
+本 API の本番運用環境 = Windows Docker Desktop では Chromium sandbox の namespace / chroot 作成に `SYS_ADMIN` / `SYS_CHROOT` が必要なため、`docker-compose.dev-sysadmin.yml` overlay を **dev / prod 共通で必須適用** する (requirements.md C-P-09 の 2026-05-17 運用注記)。Linux 直接ホスト運用が将来発生した場合は `SYS_ADMIN` なし + custom seccomp / AppArmor / user namespace 構成への移行を再評価し、別途 smoke test を実施する。
 
 #### Dockerfile への init 追加(C-P-03)
 
