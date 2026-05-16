@@ -1,0 +1,9 @@
+{
+  "theme": "default",
+  "htmlLabels": true,
+  "flowchart": {
+    "htmlLabels": true,
+    "useMaxWidth": true
+  },
+  "themeCSS": ".label foreignObject { overflow: visible; }"
+}

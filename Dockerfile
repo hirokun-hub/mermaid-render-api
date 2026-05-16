@@ -2,11 +2,13 @@
 FROM node:20-bullseye-slim AS builder
 WORKDIR /app
 
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
 COPY package*.json ./
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
   && rm -rf /var/lib/apt/lists/*
-RUN npm install
+RUN npm ci
 COPY . .
 RUN npm run build
 
@@ -14,9 +16,13 @@ RUN npm run build
 FROM node:20-bullseye-slim
 WORKDIR /app
 
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     chromium \
+    chromium-sandbox \
+    tini \
     fonts-noto-cjk \
     libcairo2 \
     libpango-1.0-0 \
@@ -51,16 +57,23 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/puppeteer.config.json ./puppeteer.config.json
 
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 ENV NODE_ENV=production
 ENV TZ=UTC
-ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV NODE_OPTIONS="--disable-proto=delete"
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PUPPETEER_CONFIG_PATH=/app/puppeteer.config.json
 ENV MERMAID_CONFIG_PATH=/app/mermaid.config.json
+ENV HOME=/tmp
+ENV XDG_CACHE_HOME=/home/node/.cache
+ENV TMPDIR=/tmp/mermaid-render-api
 
-RUN mkdir -p /tmp/mermaid-render-api
+RUN mkdir -p /tmp/mermaid-render-api \
+    /home/node/.cache \
+  && chown -R node:node /app /tmp/mermaid-render-api /home/node/.cache
 
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+USER node
+ENTRYPOINT ["tini", "--"]
+CMD ["node", "dist/server/server.js"]

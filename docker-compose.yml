@@ -1,9 +1,36 @@
+# 共通テンプレート: prod / test 両サービスで同一のセキュリティ・ランタイム設定。
+# DRY 原則 (memory: feedback_development_methodology.md) に従い、cap_drop 等の
+# セキュリティ設定の drift を防ぐため anchor で集約する。
+x-mermaid-render-api-base: &mermaid-base
+  build:
+    context: .
+  user: '1000:1000'
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=256m
+    - /tmp/mermaid-render-api:rw,noexec,nosuid,nodev,size=256m
+    - /home/node/.cache:rw,noexec,nosuid,nodev,size=128m
+  shm_size: '256m'
+  pids_limit: 256
+  mem_limit: 1g
+  cap_drop:
+    - ALL
+
 services:
   mermaid-render-api:
-    build:
-      context: .
+    <<: *mermaid-base
     ports:
       - '3100:3000'
     env_file:
       - .env
     restart: unless-stopped
+
+  mermaid-render-api-test:
+    <<: *mermaid-base
+    ports:
+      - '3101:3000'
+    env_file:
+      - .env.test
+    profiles:
+      - test
+    restart: 'no'

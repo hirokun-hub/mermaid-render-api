@@ -39,6 +39,7 @@ desktop.ini
 # Editors
 .vscode/
 .idea/
+.claude/*.local.*
 *.swp
 *.swo
 *~
@@ -46,10 +47,16 @@ desktop.ini
 .classpath
 .settings/
 
+# Browser automation artifacts (playwright-cli session snapshots/screenshots)
+.playwright-cli/
+
 # Temporary files
 tmp/
 temp/
 *.tmp
+
+# Personal scratch / inbox (per user memory feedback_doc_placement.md)
+inbox/
 
 # Dynamically generated config files
 mermaid.config.json

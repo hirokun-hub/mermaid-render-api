@@ -1,28 +1,19 @@
 import { createServer } from 'node:http'
-import { promises as fs } from 'node:fs'
-
-import { app } from '../../src/server/app.js'
-import {
-  MERMAID_CONFIG_PATH,
-  MERMAID_PADDING,
-  generateMermaidConfig
-} from '../../src/config.js'
 
 export interface TestServer {
   baseUrl: string
   close: () => Promise<void>
 }
 
-export async function startTestServer(): Promise<TestServer> {
-  // Generate Mermaid config file for tests
-  const mermaidConfig = generateMermaidConfig(MERMAID_PADDING)
-  await fs.writeFile(
-    MERMAID_CONFIG_PATH,
-    JSON.stringify(mermaidConfig, null, 2),
-    'utf8'
-  )
+let activeServerCount = 0
 
+export async function startTestServer(): Promise<TestServer> {
+  process.env.RENDERER_MODE ??= 'cli'
+  const { app, closeRenderer, readyRenderer } = await import('../../src/server/app.js')
+  await readyRenderer()
+  activeServerCount += 1
   const server = createServer(app)
+  let closePromise: Promise<void> | null = null
 
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', () => resolve())
@@ -33,9 +24,22 @@ export async function startTestServer(): Promise<TestServer> {
 
   return {
     baseUrl: `http://127.0.0.1:${port}`,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()))
-      })
+    close: async () => {
+      closePromise ??= closeTestServer(server, closeRenderer)
+      await closePromise
+    }
+  }
+}
+
+async function closeTestServer(
+  server: ReturnType<typeof createServer>,
+  closeRenderer: () => Promise<void>
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((err) => (err ? reject(err) : resolve()))
+  })
+  activeServerCount = Math.max(0, activeServerCount - 1)
+  if (activeServerCount === 0) {
+    await closeRenderer()
   }
 }

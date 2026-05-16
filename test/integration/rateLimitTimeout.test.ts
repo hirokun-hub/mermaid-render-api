@@ -1,9 +1,14 @@
+/**
+ * PROP-13: HTTP 層 RATE_LIMIT_MAX_INFLIGHT 超 → 即時 429, Pool 層 POOL_QUEUE_MAX 超 → 503
+ * Validates: REQ-S-03
+ */
 import { afterEach, describe, expect, test } from 'vitest'
 
 import { httpRequest } from '../helpers/http.js'
 import { startTestServer } from '../helpers/server.js'
 import { sleep } from '../helpers/sleep.js'
 import { MermaidRenderer } from '../../src/renderer/mermaidRenderer.js'
+import { RATE_LIMIT_MAX_INFLIGHT } from '../../src/config.js'
 
 const validCode = 'graph TD\nA-->B'
 
@@ -30,7 +35,9 @@ describe('rate limit and timeout handling', () => {
           body: payload
         })
 
-      const responses = await Promise.all([send(), send(), send()])
+      const responses = await Promise.all(
+        Array.from({ length: RATE_LIMIT_MAX_INFLIGHT + 1 }, send)
+      )
       const statuses = responses.map((response) => response.status)
 
       expect(statuses.filter((status) => status === 429).length).toBe(1)
@@ -40,6 +47,7 @@ describe('rate limit and timeout handling', () => {
         error_type?: string
       }
       expect(payloadJson.error_type).toBe('rate_limited')
+      expect(limited?.headers['retry-after']).toMatch(/^[1-9]\d*$/)
     } finally {
       await server.close()
     }
@@ -60,7 +68,7 @@ describe('rate limit and timeout handling', () => {
       const response = await httpRequest(`${server.baseUrl}/render`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: validCode, format: 'svg', timeout_ms: 1 })
+        body: JSON.stringify({ code: validCode, format: 'svg', timeout_ms: 1000 })
       })
 
       expect(response.status).toBe(504)

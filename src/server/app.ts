@@ -1,65 +1,112 @@
 import express, { Request, Response } from 'express'
 
-import { DEFAULT_TIMEOUT_MS, MAX_CONCURRENT_RENDERERS } from '../config.js'
+import {
+  BODY_LIMIT_BYTES,
+  buildRequestMermaidConfig,
+  CONTENT_TYPE_MAP,
+  DEFAULT_FORMAT,
+  RATE_LIMIT_MAX_INFLIGHT
+} from '../config.js'
 import { generateRequestId } from '../utils/requestId.js'
 import { logRequest, logResponse, logError } from '../utils/logger.js'
 import { validateRenderRequest } from '../validation/inputValidator.js'
-import { MermaidRenderer } from '../renderer/mermaidRenderer.js'
 import { RateLimiter } from '../limiter/rateLimiter.js'
+import { createRenderer } from '../renderer/createRenderer.js'
+import type {
+  RenderErrorType,
+  RendererCloseOptions
+} from '../renderer/mermaidRendererAdapter.js'
+import { WarningCode, WarningCollector } from '../utils/warnings.js'
+import {
+  buildErrorResponse,
+  retryAfterFor
+} from './errorResponse.js'
+import {
+  observability,
+  registerObservabilityRoutes,
+  type RenderLogResult
+} from './observability.js'
+import type { RetryAfterReason } from './errorResponse.js'
 
 const app = express()
-const renderer = new MermaidRenderer()
-const rateLimiter = new RateLimiter(MAX_CONCURRENT_RENDERERS)
-const CONTENT_TYPE_MAP: Record<'svg' | 'png', string> = {
-  svg: 'image/svg+xml',
-  png: 'image/png'
-}
+const renderer = createRenderer()
+const rateLimiter = new RateLimiter(RATE_LIMIT_MAX_INFLIGHT)
 
-app.use(express.json({ limit: '128kb' }))
+observability.setPoolStatsProvider(() => renderer.getPoolStats?.() ?? null)
+
+registerObservabilityRoutes(app, {
+  isPoolReady: async () => renderer.isPoolReady?.() ?? false
+})
+
+app.use(express.json({ limit: BODY_LIMIT_BYTES, strict: true }))
 
 app.post('/render', async (req: Request, res: Response) => {
   const requestId = generateRequestId()
   const start = Date.now()
-  let statusCode = 200
-  let outcome: 'success' | 'failure' = 'success'
-  let exitCode: number | null = null
+  let renderStart = start
+  let renderMs = 0
+  let postProcessMs = 0
   let acquired = false
+  let result: RenderLogResult = 'ok'
+  let queueMs = 0
+  let errorField: string | null = null
+  let errorConstraint: string | null = null
 
-  logRequest(requestId, req.method, req.path)
-
-  const requestedTimeout =
-    typeof req.body.timeout_ms === 'number' && req.body.timeout_ms > 0
-      ? req.body.timeout_ms
-      : DEFAULT_TIMEOUT_MS
+  const warnings = new WarningCollector()
 
   const validation = validateRenderRequest({
     code: req.body.code,
-    format: req.body.format
+    format: req.body.format,
+    timeout_ms: req.body.timeout_ms,
+    mermaid_config: req.body.mermaid_config,
+    post_process: req.body.post_process
   })
 
   const requestedFormat = validation.requestedFormat
   const normalizedFormat = validation.normalizedFormat
+  for (const warning of validation.warnings) {
+    warnings.add(warning.code, warning.detail)
+  }
+  addSvgOnlyPostProcessWarningForPng(normalizedFormat, validation, warnings)
 
   const sendError = (
-    type: string,
+    type: RenderErrorType,
     status: number,
     stderr: string,
-    code: number | null
+    code: number | null,
+    extras: Record<string, unknown> = {}
   ) => {
-    statusCode = status
-    outcome = 'failure'
-    res
+    result = type
+    errorField = (extras.error_field as string | null | undefined) ?? null
+    errorConstraint =
+      (extras.error_constraint as string | null | undefined) ?? null
+    const response = buildErrorResponse({
+      requestId,
+      errorType: type,
+      statusCode: status,
+      stderr,
+      exitCode: code,
+      format: requestedFormat,
+      errorMessage: (extras.error_message as string | null | undefined) ?? null,
+      line: (extras.line as number | null | undefined) ?? null,
+      errorField: (extras.error_field as string | null | undefined) ?? null,
+      errorConstraint:
+        (extras.error_constraint as string | null | undefined) ?? null
+    })
+    const responseBuilder = res
       .status(status)
       .set('Content-Type', 'application/json')
       .set('X-Request-Id', requestId)
-      .json({
-        request_id: requestId,
-        error_type: type,
-        status_code: status,
-        stderr,
-        exit_code: code,
-        format: requestedFormat
-      })
+
+    const retryAfter = retryAfterFor(
+      type,
+      (extras.retry_reason as RetryAfterReason | undefined) ?? undefined
+    )
+    if (retryAfter) {
+      responseBuilder.set('Retry-After', retryAfter)
+    }
+
+    responseBuilder.json(response)
   }
 
   if (!validation.valid) {
@@ -68,17 +115,29 @@ app.post('/render', async (req: Request, res: Response) => {
       message: 'invalid_request',
       status_code: 400,
       stderr: '',
-      exit_code: null
+      exit_code: null,
+      error_field: null,
+      error_constraint: null
     }
-    sendError('invalid_request', 400, error.stderr, null)
-    logError(
-      requestId,
-      new Error(error.message),
-      null,
-      { stage: 'validation' }
-    )
+    sendError('invalid_request', 400, error.stderr, null, {
+      error_message: error.message,
+      error_field: error.error_field,
+      error_constraint: error.error_constraint
+    })
     const duration = Date.now() - start
-    logResponse(requestId, statusCode, duration, outcome, exitCode)
+    observeRenderRequest({
+      requestId,
+      format: requestedFormat,
+      code: req.body.code,
+      totalMs: duration,
+      renderMs,
+      queueMs,
+      postProcessMs,
+      result,
+      warnings,
+      errorField,
+      errorConstraint
+    })
     return
   }
 
@@ -87,50 +146,72 @@ app.post('/render', async (req: Request, res: Response) => {
   if (!allowed) {
     sendError('rate_limited', 429, '', null)
     const duration = Date.now() - start
-    logResponse(requestId, statusCode, duration, outcome, exitCode)
+    observeRenderRequest({
+      requestId,
+      format: normalizedFormat,
+      code: req.body.code,
+      totalMs: duration,
+      renderMs,
+      queueMs,
+      postProcessMs,
+      result,
+      warnings,
+      errorField,
+      errorConstraint
+    })
     return
   }
 
   try {
-    const renderResult = await renderer.render(
-      requestId,
-      req.body.code,
-      normalizedFormat,
-      requestedTimeout
+    const mermaidConfig = buildRequestMermaidConfig(
+      validation.mermaidConfig,
+      warnings
     )
+    renderStart = Date.now()
+    const renderResult = await renderer.render({
+      requestId,
+      code: req.body.code,
+      format: normalizedFormat,
+      timeoutMs: validation.timeoutMs,
+      mermaidConfig,
+      postProcess: validation.postProcess
+    })
+    queueMs = renderResult.queueMs ?? 0
+    renderMs = Date.now() - renderStart
+    postProcessMs = renderResult.postProcessMs ?? 0
 
     if (!renderResult.success) {
-      exitCode = renderResult.exitCode ?? null
       const status =
         renderResult.errorType === 'timeout'
           ? 504
+          : renderResult.errorType === 'service_unavailable'
+            ? 503
           : renderResult.errorType === 'parse_error'
             ? 400
             : 500
       sendError(
         renderResult.errorType ?? 'render_error',
         status,
-        renderResult.stderr ?? '',
-        exitCode
-      )
-      logError(
-        requestId,
-        new Error('renderer failed'),
-        exitCode,
-        { error_type: renderResult.errorType, stderr: renderResult.stderr }
+        renderResult.rawErrorText ?? '',
+        renderResult.exitCode ?? null,
+        {
+          error_message: renderResult.errorMessage ?? null,
+          line: renderResult.line ?? null,
+          error_field: renderResult.errorField ?? null,
+          error_constraint: renderResult.errorConstraint ?? null,
+          retry_reason: renderResult.retryReason
+        }
       )
       return
     }
 
-    exitCode = null
     res
       .status(200)
       .set('Content-Type', CONTENT_TYPE_MAP[normalizedFormat])
       .set('X-Request-Id', requestId)
       .send(renderResult.data)
   } catch (error) {
-    statusCode = 500
-    outcome = 'failure'
+    result = 'render_error'
     logError(requestId, error as Error, null, { stage: 'render' })
     sendError('render_error', 500, '', null)
   } finally {
@@ -138,7 +219,19 @@ app.post('/render', async (req: Request, res: Response) => {
       rateLimiter.release()
     }
     const duration = Date.now() - start
-    logResponse(requestId, statusCode, duration, outcome, exitCode)
+    observeRenderRequest({
+      requestId,
+      format: normalizedFormat,
+      code: req.body.code,
+      totalMs: duration,
+      renderMs,
+      queueMs,
+      postProcessMs,
+      result,
+      warnings,
+      errorField,
+      errorConstraint
+    })
   }
 })
 
@@ -156,4 +249,67 @@ app.get('/healthz', (req: Request, res: Response) => {
   logResponse(requestId, 200, duration, 'success', null)
 })
 
-export { app }
+async function closeRenderer(options: RendererCloseOptions = {}): Promise<void> {
+  await renderer.close(options)
+}
+
+async function readyRenderer(): Promise<void> {
+  await renderer.ready()
+}
+
+export { app, closeRenderer, readyRenderer }
+
+function addSvgOnlyPostProcessWarningForPng(
+  format: string,
+  validation: ReturnType<typeof validateRenderRequest>,
+  warnings: WarningCollector
+): void {
+  if (!validation.valid || format !== 'png') return
+  if (!validation.postProcess.strip_max_width) return
+
+  warnings.add(WarningCode.SvgOnlyOptionInPng, {
+    option: 'post_process.strip_max_width',
+    requested_format: format,
+    applies_to_format: DEFAULT_FORMAT
+  })
+}
+
+function observeRenderRequest(input: {
+  requestId: string
+  format: string
+  code: unknown
+  totalMs: number
+  renderMs: number
+  queueMs: number
+  postProcessMs: number
+  result: RenderLogResult
+  warnings: WarningCollector
+  errorField: string | null
+  errorConstraint: string | null
+}): void {
+  const stats = renderer.getPoolStats?.() ?? {
+    inUse: 0,
+    queued: 0,
+    browserRestartsTotal: 0,
+    renderTimeoutsTotal: 0
+  }
+  observability.syncPoolStats(stats)
+  observability.observeRequest({
+    requestId: input.requestId,
+    format: input.format,
+    codeBytes:
+      typeof input.code === 'string'
+        ? Buffer.byteLength(input.code, 'utf8')
+        : 0,
+    queueMs: input.queueMs,
+    renderMs: input.renderMs,
+    postProcessMs: input.postProcessMs,
+    totalMs: input.totalMs,
+    poolInUse: stats.inUse,
+    poolWaiting: stats.queued,
+    result: input.result,
+    warnings: input.warnings.drain().map((warning) => warning.code),
+    errorField: input.errorField,
+    errorConstraint: input.errorConstraint
+  })
+}

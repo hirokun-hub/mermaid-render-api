@@ -1,0 +1,234 @@
+[
+  {
+    "file": "case-10-padding-4.svg",
+    "nodes": [
+      {
+        "id": "mermaid-7b6f57ff-92ab-4fc0-9da9-3f14c57ed591-flowchart-A-0",
+        "text": "集める ✓(PrimeDrive 自動)",
+        "rectW": "145.55",
+        "rectH": "56.00",
+        "foW": "129.55",
+        "foH": "48.00",
+        "actualW": "135.23",
+        "actualH": "48.00",
+        "overflow": "5.69",
+        "clipMargin": "5.16"
+      },
+      {
+        "id": "mermaid-7b6f57ff-92ab-4fc0-9da9-3f14c57ed591-flowchart-B-1",
+        "text": "整理する(手動 + ✓)",
+        "rectW": "85.80",
+        "rectH": "56.00",
+        "foW": "69.80",
+        "foH": "48.00",
+        "actualW": "80.55",
+        "actualH": "48.00",
+        "overflow": "10.75",
+        "clipMargin": "2.63"
+      }
+    ]
+  },
+  {
+    "file": "case-10-padding-8.svg",
+    "nodes": [
+      {
+        "id": "mermaid-7112a123-9498-4082-b510-d6c4a1d52b1d-flowchart-A-0",
+        "text": "集める ✓(PrimeDrive 自動)",
+        "rectW": "161.55",
+        "rectH": "64.00",
+        "foW": "129.55",
+        "foH": "48.00",
+        "actualW": "135.23",
+        "actualH": "48.00",
+        "overflow": "5.69",
+        "clipMargin": "13.16"
+      },
+      {
+        "id": "mermaid-7112a123-9498-4082-b510-d6c4a1d52b1d-flowchart-B-1",
+        "text": "整理する(手動 + ✓)",
+        "rectW": "101.80",
+        "rectH": "64.00",
+        "foW": "69.80",
+        "foH": "48.00",
+        "actualW": "80.55",
+        "actualH": "48.00",
+        "overflow": "10.75",
+        "clipMargin": "10.63"
+      }
+    ]
+  },
+  {
+    "file": "case-10-padding-15.svg",
+    "nodes": [
+      {
+        "id": "mermaid-cf7d3800-b66e-4a4b-8234-3d880e34ea37-flowchart-A-0",
+        "text": "集める ✓(PrimeDrive 自動)",
+        "rectW": "189.55",
+        "rectH": "78.00",
+        "foW": "129.55",
+        "foH": "48.00",
+        "actualW": "135.23",
+        "actualH": "48.00",
+        "overflow": "5.69",
+        "clipMargin": "27.16"
+      },
+      {
+        "id": "mermaid-cf7d3800-b66e-4a4b-8234-3d880e34ea37-flowchart-B-1",
+        "text": "整理する(手動 + ✓)",
+        "rectW": "129.80",
+        "rectH": "78.00",
+        "foW": "69.80",
+        "foH": "48.00",
+        "actualW": "80.55",
+        "actualH": "48.00",
+        "overflow": "10.75",
+        "clipMargin": "24.63"
+      }
+    ]
+  },
+  {
+    "file": "case-10-padding-30.svg",
+    "nodes": [
+      {
+        "id": "mermaid-6690b421-026c-4076-be5e-ff818a474e73-flowchart-A-0",
+        "text": "集める ✓(PrimeDrive 自動)",
+        "rectW": "249.55",
+        "rectH": "108.00",
+        "foW": "129.55",
+        "foH": "48.00",
+        "actualW": "135.23",
+        "actualH": "48.00",
+        "overflow": "5.69",
+        "clipMargin": "57.16"
+      },
+      {
+        "id": "mermaid-6690b421-026c-4076-be5e-ff818a474e73-flowchart-B-1",
+        "text": "整理する(手動 + ✓)",
+        "rectW": "189.80",
+        "rectH": "108.00",
+        "foW": "69.80",
+        "foH": "48.00",
+        "actualW": "80.55",
+        "actualH": "48.00",
+        "overflow": "10.75",
+        "clipMargin": "54.63"
+      }
+    ]
+  },
+  {
+    "file": "case-02-padding-4.svg",
+    "nodes": [
+      {
+        "id": "mermaid-65008c5a-c0d1-47a8-bc4d-26521f5caa63-flowchart-A-0",
+        "text": "集める",
+        "rectW": "64.02",
+        "rectH": "32.00",
+        "foW": "48.02",
+        "foH": "24.00",
+        "actualW": "48.00",
+        "actualH": "24.00",
+        "overflow": "-0.02",
+        "clipMargin": "8.01"
+      },
+      {
+        "id": "mermaid-65008c5a-c0d1-47a8-bc4d-26521f5caa63-flowchart-B-1",
+        "text": "完了",
+        "rectW": "48.02",
+        "rectH": "32.00",
+        "foW": "32.02",
+        "foH": "24.00",
+        "actualW": "32.00",
+        "actualH": "24.00",
+        "overflow": "-0.02",
+        "clipMargin": "8.01"
+      }
+    ]
+  },
+  {
+    "file": "case-02-padding-8.svg",
+    "nodes": [
+      {
+        "id": "mermaid-8ed54c9e-1722-4fb1-946a-9d7c5982bd6c-flowchart-A-0",
+        "text": "集める",
+        "rectW": "80.02",
+        "rectH": "40.00",
+        "foW": "48.02",
+        "foH": "24.00",
+        "actualW": "48.00",
+        "actualH": "24.00",
+        "overflow": "-0.02",
+        "clipMargin": "16.01"
+      },
+      {
+        "id": "mermaid-8ed54c9e-1722-4fb1-946a-9d7c5982bd6c-flowchart-B-1",
+        "text": "完了",
+        "rectW": "64.02",
+        "rectH": "40.00",
+        "foW": "32.02",
+        "foH": "24.00",
+        "actualW": "32.00",
+        "actualH": "24.00",
+        "overflow": "-0.02",
+        "clipMargin": "16.01"
+      }
+    ]
+  },
+  {
+    "file": "case-02-padding-15.svg",
+    "nodes": [
+      {
+        "id": "mermaid-ac10ce68-d30e-4bda-ac15-ad539163b0d0-flowchart-A-0",
+        "text": "集める",
+        "rectW": "108.02",
+        "rectH": "54.00",
+        "foW": "48.02",
+        "foH": "24.00",
+        "actualW": "48.00",
+        "actualH": "24.00",
+        "overflow": "-0.02",
+        "clipMargin": "30.01"
+      },
+      {
+        "id": "mermaid-ac10ce68-d30e-4bda-ac15-ad539163b0d0-flowchart-B-1",
+        "text": "完了",
+        "rectW": "92.02",
+        "rectH": "54.00",
+        "foW": "32.02",
+        "foH": "24.00",
+        "actualW": "32.00",
+        "actualH": "24.00",
+        "overflow": "-0.02",
+        "clipMargin": "30.01"
+      }
+    ]
+  },
+  {
+    "file": "case-02-padding-30.svg",
+    "nodes": [
+      {
+        "id": "mermaid-e1ef40be-c540-4cd3-b018-365c3ee26ba8-flowchart-A-0",
+        "text": "集める",
+        "rectW": "168.02",
+        "rectH": "84.00",
+        "foW": "48.02",
+        "foH": "24.00",
+        "actualW": "48.00",
+        "actualH": "24.00",
+        "overflow": "-0.02",
+        "clipMargin": "60.01"
+      },
+      {
+        "id": "mermaid-e1ef40be-c540-4cd3-b018-365c3ee26ba8-flowchart-B-1",
+        "text": "完了",
+        "rectW": "152.02",
+        "rectH": "84.00",
+        "foW": "32.02",
+        "foH": "24.00",
+        "actualW": "32.00",
+        "actualH": "24.00",
+        "overflow": "-0.02",
+        "clipMargin": "60.01"
+      }
+    ]
+  }
+]

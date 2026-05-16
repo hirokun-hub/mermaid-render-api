@@ -1,0 +1,25 @@
+# Normalize line endings to LF for all text files, regardless of
+# contributors' core.autocrlf setting. Binary files are excluded.
+* text=auto eol=lf
+
+# Explicit binary (skip text conversion / diff)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+
+# Shell scripts must keep LF even on Windows checkout
+*.sh text eol=lf
+
+# Windows-only scripts keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>case 10 actual size</title>
+<style>
+  body { font-family: sans-serif; margin: 40px; background: #fff; }
+  h2 { font-size: 14px; }
+  .frame { border: 2px solid red; display: inline-block; padding: 0; background: #fafafa; }
+  .frame svg { display: block; }
+</style></head>
+<body>
+<h2>case 10 SVG (実寸表示・赤枠 = SVG ルートの外周)</h2>
+<div class="frame" id="frame"></div>
+<script>
+fetch('10-td-multiline-cjk.svg').then(r => r.text()).then(t => {
+  document.getElementById('frame').innerHTML = t;
+  const svg = document.querySelector('svg');
+  if (svg) {
+    const vb = svg.getAttribute('viewBox').split(/\s+/).map(Number);
+    svg.removeAttribute('style');
+    svg.setAttribute('width', vb[2]);
+    svg.setAttribute('height', vb[3]);
+  }
+});
+</script>
+</body></html>

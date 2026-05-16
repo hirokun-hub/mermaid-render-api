@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-05-16T13:29:30.703Z",
+  "label": "before",
+  "target": "http://localhost:3100",
+  "environment": {
+    "nodeVersion": "v20.20.0",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "baseline": {
+    "chromiumProcesses": 4,
+    "targetRssKib": null
+  },
+  "postRun": {
+    "chromiumProcesses": 4,
+    "targetRssKib": null
+  },
+  "scenarios": [
+    {
+      "scenario": "simple",
+      "description": "単純 flowchart (5 ノード以下)。NFR-01 ゲート対象。",
+      "concurrency": 10,
+      "iterations": 3,
+      "totalRequests": 30,
+      "successRate": 0.2,
+      "latency": {
+        "p50": 2747.368500999999,
+        "p95": 2842.018591999999,
+        "p99": 2846.211533599999,
+        "min": 2724.8253210000003,
+        "max": 2847.2597689999984
+      },
+      "errorBreakdown": {
+        "rate_limited": 24
+      }
+    },
+    {
+      "scenario": "complex",
+      "description": "複雑 flowchart (約 20 ノード)。スループット参考値。",
+      "concurrency": 10,
+      "iterations": 3,
+      "totalRequests": 30,
+      "successRate": 0.2,
+      "latency": {
+        "p50": 2801.6288889999996,
+        "p95": 2803.696366000002,
+        "p99": 2803.977182000002,
+        "min": 2799.5208090000015,
+        "max": 2804.047386000002
+      },
+      "errorBreakdown": {
+        "rate_limited": 24
+      }
+    }
+  ],
+  "nfr01SimpleP50Ms": 2747.368500999999,
+  "nfr01ThresholdMs": 500,
+  "nfr01Passed": false
+}

@@ -16,4 +16,10 @@ describe('GET /healthz', () => {
       await server.close()
     }
   })
+
+  test('allows test server close to be called twice', async () => {
+    const server = await startTestServer()
+    await server.close()
+    await expect(server.close()).resolves.toBeUndefined()
+  })
 })

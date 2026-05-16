@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<title>all cases — actual size</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; background: #fff; }
+  .row { margin: 12px 0; border-top: 1px solid #ddd; padding-top: 8px; }
+  .label { font-size: 12px; color: #333; margin-bottom: 4px; }
+  .frame { border: 1px solid #c33; display: inline-block; background: #f8f8f8; }
+  .frame svg { display: block; }
+</style></head>
+<body>
+<h1>SVG 実寸表示(赤枠 = SVG ルート境界)</h1>
+<div id="root"></div>
+<script>
+const ids = [
+  '01-single-ascii','02-single-cjk','03-multiline-cjk-br','04-multiline-cjk-3lines',
+  '05-multiline-ascii-br','06-rounded-cjk-multi','07-stadium-cjk-multi',
+  '08-diamond-cjk-multi','09-long-cjk-singleline','10-td-multiline-cjk'
+];
+const root = document.getElementById('root');
+(async () => {
+  for (const id of ids) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = '<div class="label">' + id + '</div><div class="frame" id="f-' + id + '"></div>';
+    root.appendChild(row);
+    const t = await (await fetch(id + '.svg')).text();
+    document.getElementById('f-' + id).innerHTML = t;
+    const svg = document.querySelector('#f-' + id + ' svg');
+    if (svg) {
+      const vb = svg.getAttribute('viewBox').split(/\s+/).map(Number);
+      svg.removeAttribute('style');
+      svg.setAttribute('width', vb[2]);
+      svg.setAttribute('height', vb[3]);
+    }
+  }
+})();
+</script>
+</body></html>

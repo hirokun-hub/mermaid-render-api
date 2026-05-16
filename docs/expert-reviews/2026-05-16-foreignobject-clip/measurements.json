@@ -1,0 +1,93 @@
+[
+  {
+    "tag": "exp-1.svg",
+    "text": "(手動 + ✓)",
+    "foW": "69.80",
+    "actualW": "80.55",
+    "overflow": "10.75"
+  },
+  {
+    "tag": "exp-2.svg",
+    "text": "整理する",
+    "foW": "64.02",
+    "actualW": "64.00",
+    "overflow": "-0.02"
+  },
+  {
+    "tag": "exp-3.svg",
+    "text": "整理する整理する整理する",
+    "foW": "128.02",
+    "actualW": "128.00",
+    "overflow": "-0.02"
+  },
+  {
+    "tag": "exp-4.svg",
+    "text": "(手動 + ✓)整理する",
+    "foW": "69.80",
+    "actualW": "80.55",
+    "overflow": "10.75"
+  },
+  {
+    "tag": "exp-5.svg",
+    "text": "整理する(手動 + ✓)",
+    "foW": "69.80",
+    "actualW": "80.55",
+    "overflow": "10.75"
+  },
+  {
+    "tag": "exp-6.svg",
+    "text": "(整理する)",
+    "foW": "74.83",
+    "actualW": "75.40",
+    "overflow": "0.57"
+  },
+  {
+    "tag": "exp-7.svg",
+    "text": "整理 + 整理",
+    "foW": "80.06",
+    "actualW": "85.16",
+    "overflow": "5.09"
+  },
+  {
+    "tag": "exp-8.svg",
+    "text": "整理する ✓",
+    "foW": "78.52",
+    "actualW": "85.33",
+    "overflow": "6.81"
+  },
+  {
+    "tag": "exp-9.svg",
+    "text": "(test + ok)",
+    "foW": "73.22",
+    "actualW": "82.29",
+    "overflow": "9.07"
+  },
+  {
+    "tag": "exp-10.svg",
+    "text": "PrimeDrive auto + check",
+    "foW": "180.70",
+    "actualW": "195.33",
+    "overflow": "14.63"
+  },
+  {
+    "tag": "exp-11.svg",
+    "text": "整理する(全角１)",
+    "foW": "122.83",
+    "actualW": "123.40",
+    "overflow": "0.57"
+  },
+  {
+    "tag": "exp-12.svg",
+    "text": "整理する（手動＋✓）",
+    "foW": "154.94",
+    "actualW": "160.00",
+    "overflow": "5.06"
+  },
+  {
+    "tag": "exp-13.svg",
+    "text": "✓",
+    "foW": "10.94",
+    "actualW": "16.00",
+    "overflow": "5.06"
+  }
+]
