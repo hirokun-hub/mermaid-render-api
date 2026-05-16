@@ -55,6 +55,9 @@ tmp/
 temp/
 *.tmp
 
+# Personal scratch / inbox (per user memory feedback_doc_placement.md)
+inbox/
+
 # Dynamically generated config files
 mermaid.config.json
 
