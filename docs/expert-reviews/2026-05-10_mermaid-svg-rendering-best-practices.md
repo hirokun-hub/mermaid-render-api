@@ -196,6 +196,8 @@ Expert A/O 一致(外部 issue/コミュニティ回答で実証):
 
 → `htmlLabels: true` のまま(Markdown / エンティティ等の機能を保ったまま)、foreignObject 境界での clip を抑制できる。SVG ルート内の `<style>` に焼き込まれるので配布 HTML 側 CSS の影響を受けない。
 
+> **2026-05-16 注**: その後の実機検証で、上記の themeCSS は **standalone SVG モード(`<img>` 経由 / GitHub Markdown 等)では効かない**ことを確認した。実測データと根本原因は `docs/expert-reviews/2026-05-16_foreignobject-clip-and-font-metrics-best-practices.md` を参照。
+
 ---
 
 ## 4. 確実なリスクとガードレール
