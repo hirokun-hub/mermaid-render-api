@@ -1,125 +1,86 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8"><title>extreme right-shift</title>
+<html lang="ja"><head><meta charset="utf-8"><title>extreme right-shift (1x)</title>
 <style>
-  body { margin:0; padding:24px; font-family:sans-serif; background:#fafafa; }
-  h2 { font-size:14px; margin: 24px 0 6px; }
-  h3 { font-size:13px; margin: 12px 0 4px; color:#444; font-weight:500; }
-  .row { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
-  .box {
-    background:#fff; padding:6px 8px 8px; border:1px solid #ccc;
-    display:inline-block;
-  }
-  .label { font-size:11px; color:#666; margin-bottom:4px; font-family: monospace; }
-  /* zoom container 2x for clarity */
-  .zoom2x .stage img, .zoom2x .stage object { transform-origin: top left; transform: scale(2); image-rendering: -webkit-optimize-contrast; }
-  .stage { position: relative; display: inline-block; }
-  /* center line drawn at the rect center position on a per-node basis */
-  .stage .center-marker {
+  body { margin:0; padding:16px 24px; font-family:sans-serif; background:#fafafa; color:#222; }
+  h2 { font-size:14px; margin: 4px 0 12px; }
+  table { border-collapse: collapse; }
+  td, th { vertical-align: top; padding: 6px 10px; border-bottom: 1px solid #eee; font-size:12px; text-align:left; }
+  td.label { font-family: monospace; color: #555; white-space: nowrap; }
+  td.shift { font-family: monospace; text-align: right; color: #c33; font-weight: 600; }
+  td.stage { background:#fff; border:1px solid #ddd; padding: 6px; }
+  .frame { position: relative; display: inline-block; line-height: 0; }
+  .frame svg, .frame img { display:block; }
+  .center-marker {
     position: absolute; top: 0; bottom: 0;
-    border-left: 2px dashed red;
+    border-left: 1px dashed red;
     pointer-events: none;
   }
-  .stage .legend { position:absolute; bottom:-14px; left:0; font-size:10px; color:red;}
+  .legend { font-size:11px; color:#666; margin-bottom: 8px; }
 </style>
 </head><body>
 
-<h2>① Extreme right-shift cases (200% zoom, 赤破線 = rect 中心)</h2>
+<h2>Extreme right-shift cases (1:1 等倍, 赤破線 = rect 中心)</h2>
+<div class="legend">テキストの重心が赤線から左右に偏っていれば中心からズレている (= 中央揃いになっていない)。SVG は inline-embed (object) で読み込み、JS が rect 中心を実測して dashed line を打っている。PNG は隣に並べた img。</div>
 
-<div class="zoom2x">
+<table id="t">
+  <tr><th>case</th><th>SVG (object, inline)</th><th>PNG (img)</th><th>shift_px</th></tr>
+</table>
 
-<h3>ex09-many-checks: "✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓" — shift = +16.27px (= 32.5px at 2x)</h3>
-<div class="row">
-  <div class="box">
-    <div class="label">SVG (img)</div>
-    <div class="stage"><img src="extreme/ex09-many-checks.svg" />
-      <!-- rect center x=100.99 in svg units → at 2x = 201.98 from img left -->
-      <div class="center-marker" style="left:201.98px;"></div>
-    </div>
-  </div>
-  <div class="box">
-    <div class="label">PNG</div>
-    <div class="stage"><img src="extreme/ex09-many-checks.png" />
-      <div class="center-marker" style="left:201.98px;"></div>
-    </div>
-  </div>
-</div>
+<script>
+const cases = [
+  { name: "ex09-many-checks",    text: '"✓ × 10"',                shift: "+16.27" },
+  { name: "ex01-emoji-pile",     text: '"✅✅✅ 集める ✅✅✅"',   shift: "+13.12" },
+  { name: "ex02-mixed-emoji",    text: '"📤 CSV出力 → ✓ 完了 🎉"', shift:  "+9.53" },
+  { name: "ex10-long-emoji",     text: '"🚀 デプロイ完了 🎉🎉🎉"', shift:  "+9.53" },
+  { name: "ex03-tick-mark",      text: '"集める ✓✓✓✓✓"',         shift:  "+6.99" },
+  { name: "ex04-brackets",       text: '"【重要】CSV連携 ✅"',    shift:  "+4.59" },
+  { name: "ex07-narrow-i",       text: 'A="iiiiiiiiii"<br>B="WWWWWWWWWW"', shift: "A:-4.23 / B:+5.27" }
+];
 
-<h3>ex01-emoji-pile: "✅✅✅ 集める ✅✅✅" — shift = +13.12px</h3>
-<div class="row">
-  <div class="box">
-    <div class="label">SVG (img)</div>
-    <div class="stage"><img src="extreme/ex01-emoji-pile.svg" />
-      <div class="center-marker" style="left:211.06px;"></div>
-    </div>
-  </div>
-  <div class="box">
-    <div class="label">PNG</div>
-    <div class="stage"><img src="extreme/ex01-emoji-pile.png" />
-      <div class="center-marker" style="left:211.06px;"></div>
-    </div>
-  </div>
-</div>
+const tbody = document.getElementById('t');
+cases.forEach(c => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="label">${c.name}<br>${c.text}</td>
+    <td class="stage"><div class="frame"><object data="extreme/${c.name}.svg" type="image/svg+xml" data-name="${c.name}"></object></div></td>
+    <td class="stage"><div class="frame"><img src="extreme/${c.name}.png" data-name="${c.name}-png"></div></td>
+    <td class="shift">${c.shift}</td>`;
+  tbody.appendChild(tr);
+});
 
-<h3>ex02-mixed-emoji: "📤 CSV出力 → ✓ 完了 🎉" — shift = +9.53px</h3>
-<div class="row">
-  <div class="box">
-    <div class="label">SVG (img)</div>
-    <div class="stage"><img src="extreme/ex02-mixed-emoji.svg" />
-      <div class="center-marker" style="left:229.12px;"></div>
-    </div>
-  </div>
-  <div class="box">
-    <div class="label">PNG</div>
-    <div class="stage"><img src="extreme/ex02-mixed-emoji.png" />
-      <div class="center-marker" style="left:229.12px;"></div>
-    </div>
-  </div>
-</div>
+// after each <object> loads, read rect positions from its SVG DOM, then draw markers
+// in the .frame coord space for BOTH the svg side and the png side.
+document.querySelectorAll('object').forEach(obj => {
+  obj.addEventListener('load', () => {
+    const svgDoc = obj.contentDocument;
+    const objRect = obj.getBoundingClientRect();
+    const svgFrame = obj.parentElement;
+    const tr = svgFrame.closest('tr');
+    const pngFrame = tr.querySelector('td.stage:nth-child(3) .frame');
+    const pngImg = pngFrame.querySelector('img');
+    const pngRect = pngImg.getBoundingClientRect();
 
-<h3>ex10-long-emoji: "🚀 デプロイ完了 🎉🎉🎉" — shift = +9.53px</h3>
-<div class="row">
-  <div class="box">
-    <div class="label">SVG (img)</div>
-    <div class="stage"><img src="extreme/ex10-long-emoji.svg" />
-      <div class="center-marker" style="left:227.05px;"></div>
-    </div>
-  </div>
-  <div class="box">
-    <div class="label">PNG</div>
-    <div class="stage"><img src="extreme/ex10-long-emoji.png" />
-      <div class="center-marker" style="left:227.05px;"></div>
-    </div>
-  </div>
-</div>
+    svgDoc.querySelectorAll('.node').forEach(n => {
+      const rect = n.querySelector('rect.basic.label-container');
+      if (!rect) return;
+      const rb = rect.getBoundingClientRect();
+      const centerInDoc = (rb.left + rb.right) / 2;       // page coord inside the SVG document
+      // Map to position within the object element
+      const xInObject = centerInDoc; // since svgDoc origin == object's content origin (0,0)
+      // Place marker in svgFrame using svgFrame coord = obj's offset within frame is 0
+      const svgMarker = document.createElement('div');
+      svgMarker.className = 'center-marker';
+      svgMarker.style.left = xInObject + 'px';
+      svgFrame.appendChild(svgMarker);
 
-<h3>ex07-narrow-i: A="iiiiiiiiii" (shift = -4.23 px / LEFT) , B="WWWWWWWWWW" (shift = +5.27 px / RIGHT) — 同一図で左右両方の症状</h3>
-<div class="row">
-  <div class="box">
-    <div class="label">SVG (img)</div>
-    <div class="stage"><img src="extreme/ex07-narrow-i.svg" />
-      <!-- A: rect_center=52.26 → 104.52 at 2x ; B: rect_center=244.51 → 489.02 -->
-      <div class="center-marker" style="left:104.52px;"></div>
-      <div class="center-marker" style="left:489.02px;"></div>
-    </div>
-  </div>
-</div>
-
-<h3>ex03-tick-mark: "集める ✓✓✓✓✓" — shift = +6.99px</h3>
-<div class="row">
-  <div class="box">
-    <div class="label">SVG (img)</div>
-    <div class="stage"><img src="extreme/ex03-tick-mark.svg" />
-      <div class="center-marker" style="left:166.10px;"></div>
-    </div>
-  </div>
-  <div class="box">
-    <div class="label">PNG</div>
-    <div class="stage"><img src="extreme/ex03-tick-mark.png" />
-      <div class="center-marker" style="left:166.10px;"></div>
-    </div>
-  </div>
-</div>
-
-</div><!-- /zoom2x -->
+      // Same position on PNG (same intrinsic rendering, same coord)
+      const pngMarker = document.createElement('div');
+      pngMarker.className = 'center-marker';
+      pngMarker.style.left = xInObject + 'px';
+      pngFrame.appendChild(pngMarker);
+    });
+  });
+});
+</script>
 
 </body></html>
