@@ -176,3 +176,87 @@ jq -n --arg src "$SRC" '{code:$src,format:"png"}' \
 - **ズレを生んでいる根本原因としては No** — Mermaid `dagre-wrapper + htmlLabels` の foreignObject 内 cell が常に左端アンカーであることが原因。F-1 がこれを作ったわけではない。
 - **修正は必要か** — ユーザー体験次第。修正するなら themeCSS 1 行 + postProcess 1 規則 (上記 (a)+(b)) が最小コスト。
 - **PNG でも再現するか** — する。Puppeteer の DOM レンダリング内で themeCSS が効くため。F-1 をスキップしている post-process のロジックとは独立。
+
+---
+
+## 補遺 (2026-05-17 追記): 肉眼で見える極端ケースの追加検証
+
+§4 の元測定は shift ±1〜2px しかなく、ユーザー目視では「中央揃いに見える」レベルでした。
+肉眼で明確に分かるケースを探すために、Unicode/絵文字/記号を 12 パターン追加検証しました。
+
+### 結果サマリ (`shift_px = innerDiv 中心 − rect 中心`、絶対値降順)
+
+| Rank | ケース | テキスト | rect 幅 | cell 幅 | **shift_px** | 視認性 |
+|---:|---|---|---:|---:|---:|---|
+| 1 | ex09-many-checks (A) | `✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓` | 201.55 | 174.08 | **+16.27** | 明白 |
+| 2 | ex01-emoji-pile (A) | `✅✅✅ 集める ✅✅✅` | 211.06 | 177.32 | **+13.12** | 明白 |
+| 3 | ex02-mixed-emoji (A) | `📤 CSV出力 → ✓ 完了 🎉` | 229.12 | 188.25 | **+9.53** | 明白 |
+| 4 | ex10-long-emoji (A) | `🚀 デプロイ完了 🎉🎉🎉` | 227.05 | 186.15 | **+9.53** | 明白 |
+| 5 | ex03-tick-mark (A) | `集める ✓✓✓✓✓` | 166.10 | 120.13 | **+6.99** | 視認可 |
+| 6 | ex07-narrow-i (B) | `WWWWWWWWWW` | 200.48 | 151.02 | **+5.27** | 視認可 |
+| 7 | ex04-brackets (A) | `【重要】CSV連携 ✅` | 204.08 | 153.28 | **+4.59** | 視認可 |
+| 8 | ex07-narrow-i (A) | `iiiiiiiiii` | 104.02 | 35.55 | **-4.23** | **左**寄り視認可 |
+| 9 | ex08-mixed-w-cjk (B) | `完了 ✅` | 111.53 | 56.39 | +2.41 | 元測定相当 |
+| ... | (以下 ±2px 以下) | | | | | ほぼ無感 |
+
+完全結果: `docs/text-right-shift-investigation-2026-05-17/extreme/measurements.json`
+
+### キーポイント
+
+- **Mermaid が幅を取り違えやすいパターン** = `✓` `✅` `🎉` 🚀 などの**シンボル / 絵文字**、ASCII の`【】`、`W` (太字), `i` (細字)。
+- `✓` (U+2713) は Mermaid が **ASCII 相当の細い幅で計測**するが、ブラウザは CJK と等幅のグリフを描画する → 大幅な undercount。10 個並べると 16px ズレる (= 1 グリフ 1.6px × 10)。
+- 絵文字 `✅` `🚀` `🎉` は Mermaid が **絵文字フォントの実幅を取得しない** → CJK 幅相当で計測するが実描画は更に幅が広い。
+- 逆方向: `iiiiiiiiii` は Mermaid が monospace 想定で広めに見積もる → 実描画はずっと細い → cell < fO → **左**寄り。
+- 同じ図 (ex07) に `iiiiiiiiii` と `WWWWWWWWWW` を並べると、片方は左寄り・もう片方は右寄りという **対称な対比** が同じスクリーンで見える。
+
+### 視覚的エビデンス
+
+200% 拡大、各ボックスに **赤破線 = rect 中心** を重ねたスクリーンショット:
+
+![extreme right-shift overview](./text-right-shift-investigation-2026-05-17/extreme-overview.png)
+
+注目ポイント (上から):
+
+1. **ex09 (`✓ × 10`)** — SVG では右端の `✓` が **オレンジ箱の外** にハミ出している。PNG (puppeteer 描画) でも同じ右寄り。
+2. **ex01 (`✅✅✅ 集める ✅✅✅`)** — `✅` 群が赤線より明確に右側に偏在。PNG では絵文字フォント不在で `□` 表示 (PNG レンダラ環境の別問題) だが、ズレの方向は同じ。
+3. **ex02 / ex10** — 絵文字混在で右寄り。
+4. **ex07 (左: `iiiiiiiiii`, 右: `WWWWWWWWWW`)** — 同じ図で **左寄り (i)** と **右寄り (W)** が共存。
+5. **ex03 (`集める ✓✓✓✓✓`)** — `✓` 連打で右寄り。
+
+### shift と overflow の幾何関係 (再掲、極端ケースで成立確認)
+
+- `shift_px ≈ overflow_right / 2` (cell が fO 左端アンカーで右にのみハミ出すため)
+- ex09: overflow_right=32.53px → shift=16.27px ✓
+- ex01: overflow_right=26.24px → shift=13.12px ✓
+
+§4 で示した「fO 内 cell の左端アンカー」モデルが、極端ケースでも一貫して説明できる。
+
+### 副次的発見: PNG の絵文字フォント問題 (本件と独立)
+
+ex01/ex02/ex10/ex04 の PNG では絵文字 (`✅` `🚀` `🎉` 等) が **□ (missing glyph)** で表示される。これは Puppeteer ページ環境の `font-family` スタックに **カラー絵文字フォント (Noto Color Emoji 等) が含まれていない** ためで、本投稿の右寄りバグとは別物。`✓` (U+2713) など通常 BMP 記号は両方で正しく描画されるので右寄り検証には影響しない。
+
+### 追加検証手順 (再現)
+
+```bash
+cd docs/text-right-shift-investigation-2026-05-17
+# extreme/cases.json に 12 ケース定義あり
+# 各ケースをジェネレート
+python3 - << 'PY'
+import json, subprocess
+cases = json.load(open('extreme/cases.json'))
+for k, src in cases.items():
+  for fmt in ('svg','png'):
+    req = json.dumps({"code": src, "format": fmt}, ensure_ascii=False)
+    subprocess.run(["curl","-s","-o",f"extreme/{k}.{fmt}",
+       "-X","POST","-H","Content-Type: application/json",
+       "--data-binary","@-","http://127.0.0.1:3100/render"],
+       input=req.encode())
+PY
+
+# 計測ページを開いて innerText (JSON) を取得
+# (HTTP 経由で extreme/measure-all.html を開き Playwright で `() => document.getElementById("out").textContent`)
+```
+
+### 改善案の優先度更新
+
+§7 の選択肢のうち、極端ケースで shift=16px に達することが分かったので **(d) 何もしない = ユーザー目視で右寄り明白** が裏付けられた。`✓` を多用する業務フローや絵文字を使う UI ラベルでは肉眼でハッキリ気になるレベル。**(b) postProcess で flex ラッパ注入** を最有力候補にすることを推奨。

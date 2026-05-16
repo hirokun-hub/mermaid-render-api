@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>extreme right-shift</title>
+<style>
+  body { margin:0; padding:24px; font-family:sans-serif; background:#fafafa; }
+  h2 { font-size:14px; margin: 24px 0 6px; }
+  h3 { font-size:13px; margin: 12px 0 4px; color:#444; font-weight:500; }
+  .row { display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; }
+  .box {
+    background:#fff; padding:6px 8px 8px; border:1px solid #ccc;
+    display:inline-block;
+  }
+  .label { font-size:11px; color:#666; margin-bottom:4px; font-family: monospace; }
+  /* zoom container 2x for clarity */
+  .zoom2x .stage img, .zoom2x .stage object { transform-origin: top left; transform: scale(2); image-rendering: -webkit-optimize-contrast; }
+  .stage { position: relative; display: inline-block; }
+  /* center line drawn at the rect center position on a per-node basis */
+  .stage .center-marker {
+    position: absolute; top: 0; bottom: 0;
+    border-left: 2px dashed red;
+    pointer-events: none;
+  }
+  .stage .legend { position:absolute; bottom:-14px; left:0; font-size:10px; color:red;}
+</style>
+</head><body>
+
+<h2>① Extreme right-shift cases (200% zoom, 赤破線 = rect 中心)</h2>
+
+<div class="zoom2x">
+
+<h3>ex09-many-checks: "✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓" — shift = +16.27px (= 32.5px at 2x)</h3>
+<div class="row">
+  <div class="box">
+    <div class="label">SVG (img)</div>
+    <div class="stage"><img src="extreme/ex09-many-checks.svg" />
+      <!-- rect center x=100.99 in svg units → at 2x = 201.98 from img left -->
+      <div class="center-marker" style="left:201.98px;"></div>
+    </div>
+  </div>
+  <div class="box">
+    <div class="label">PNG</div>
+    <div class="stage"><img src="extreme/ex09-many-checks.png" />
+      <div class="center-marker" style="left:201.98px;"></div>
+    </div>
+  </div>
+</div>
+
+<h3>ex01-emoji-pile: "✅✅✅ 集める ✅✅✅" — shift = +13.12px</h3>
+<div class="row">
+  <div class="box">
+    <div class="label">SVG (img)</div>
+    <div class="stage"><img src="extreme/ex01-emoji-pile.svg" />
+      <div class="center-marker" style="left:211.06px;"></div>
+    </div>
+  </div>
+  <div class="box">
+    <div class="label">PNG</div>
+    <div class="stage"><img src="extreme/ex01-emoji-pile.png" />
+      <div class="center-marker" style="left:211.06px;"></div>
+    </div>
+  </div>
+</div>
+
+<h3>ex02-mixed-emoji: "📤 CSV出力 → ✓ 完了 🎉" — shift = +9.53px</h3>
+<div class="row">
+  <div class="box">
+    <div class="label">SVG (img)</div>
+    <div class="stage"><img src="extreme/ex02-mixed-emoji.svg" />
+      <div class="center-marker" style="left:229.12px;"></div>
+    </div>
+  </div>
+  <div class="box">
+    <div class="label">PNG</div>
+    <div class="stage"><img src="extreme/ex02-mixed-emoji.png" />
+      <div class="center-marker" style="left:229.12px;"></div>
+    </div>
+  </div>
+</div>
+
+<h3>ex10-long-emoji: "🚀 デプロイ完了 🎉🎉🎉" — shift = +9.53px</h3>
+<div class="row">
+  <div class="box">
+    <div class="label">SVG (img)</div>
+    <div class="stage"><img src="extreme/ex10-long-emoji.svg" />
+      <div class="center-marker" style="left:227.05px;"></div>
+    </div>
+  </div>
+  <div class="box">
+    <div class="label">PNG</div>
+    <div class="stage"><img src="extreme/ex10-long-emoji.png" />
+      <div class="center-marker" style="left:227.05px;"></div>
+    </div>
+  </div>
+</div>
+
+<h3>ex07-narrow-i: A="iiiiiiiiii" (shift = -4.23 px / LEFT) , B="WWWWWWWWWW" (shift = +5.27 px / RIGHT) — 同一図で左右両方の症状</h3>
+<div class="row">
+  <div class="box">
+    <div class="label">SVG (img)</div>
+    <div class="stage"><img src="extreme/ex07-narrow-i.svg" />
+      <!-- A: rect_center=52.26 → 104.52 at 2x ; B: rect_center=244.51 → 489.02 -->
+      <div class="center-marker" style="left:104.52px;"></div>
+      <div class="center-marker" style="left:489.02px;"></div>
+    </div>
+  </div>
+</div>
+
+<h3>ex03-tick-mark: "集める ✓✓✓✓✓" — shift = +6.99px</h3>
+<div class="row">
+  <div class="box">
+    <div class="label">SVG (img)</div>
+    <div class="stage"><img src="extreme/ex03-tick-mark.svg" />
+      <div class="center-marker" style="left:166.10px;"></div>
+    </div>
+  </div>
+  <div class="box">
+    <div class="label">PNG</div>
+    <div class="stage"><img src="extreme/ex03-tick-mark.png" />
+      <div class="center-marker" style="left:166.10px;"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /zoom2x -->
+
+</body></html>
