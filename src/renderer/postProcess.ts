@@ -35,21 +35,47 @@ export function applyPostProcess(input: PostProcessInput): PostProcessResult {
     }
   }
 
-  if (!input.postProcess?.strip_max_width) {
-    void input.requestId
-    return {
-      data: input.data,
-      durationMs: elapsed(start)
-    }
+  let svg = input.data.toString('utf8')
+
+  svg = forceForeignObjectOverflowVisible(svg)
+
+  if (input.postProcess?.strip_max_width) {
+    svg = stripRootMaxWidth(svg)
   }
 
-  const svg = input.data.toString('utf8')
-  const processed = stripRootMaxWidth(svg)
   void input.requestId
   return {
-    data: Buffer.from(processed, 'utf8'),
+    data: Buffer.from(svg, 'utf8'),
     durationMs: elapsed(start)
   }
+}
+
+export function forceForeignObjectOverflowVisible(svg: string): string {
+  return svg.replace(/<foreignObject\b([^>]*)>/gi, (_match, attrs: string) => {
+    const styleMatch = /(^|\s)style=(["'])([\s\S]*?)\2/i.exec(attrs)
+    if (styleMatch) {
+      const prefix = styleMatch[1]
+      const quote = styleMatch[2]
+      const styleValue = styleMatch[3]
+      if (styleDeclaresOverflow(styleValue)) {
+        return `<foreignObject${attrs}>`
+      }
+      const newAttrs = attrs.replace(
+        styleMatch[0],
+        `${prefix}style=${quote}${styleValue};overflow:visible${quote}`
+      )
+      return `<foreignObject${newAttrs}>`
+    }
+    return `<foreignObject style="overflow:visible"${attrs}>`
+  })
+}
+
+function styleDeclaresOverflow(styleValue: string): boolean {
+  return styleValue.split(';').some((decl) => {
+    const colonIdx = decl.indexOf(':')
+    if (colonIdx === -1) return false
+    return decl.slice(0, colonIdx).trim().toLowerCase() === 'overflow'
+  })
 }
 
 export function stripRootMaxWidth(svg: string): string {

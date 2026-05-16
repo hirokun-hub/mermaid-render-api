@@ -709,23 +709,39 @@ function extractMermaidError(rawErrorText: string): {
 
 #### 7.3.4 マッチング規則(冪等)
 
-1. **既存 `style` 属性なし**の `<foreignObject>` には `style="overflow:visible"` を新規追加
+1. **既存 `style` 属性なし**の `<foreignObject>` には `style="overflow:visible"` を先頭属性として新規追加
    - 例: `<foreignObject width="69.80" height="48">` → `<foreignObject style="overflow:visible" width="69.80" height="48">`
-2. **既存 `style` 属性あり、`overflow` 宣言を含まない**場合は既存 `style` の末尾に `;overflow:visible` を追記
+2. **既存 `style` 属性あり、CSS プロパティ名 `overflow` の宣言を含まない**場合は既存 `style` の末尾に `;overflow:visible` を追記
    - 例: `<foreignObject style="color:black" ...>` → `<foreignObject style="color:black;overflow:visible" ...>`
-3. **既存 `style` 属性あり、`overflow` 宣言を含む**場合は触らない(冪等性確保、後処理を多重適用しても結果が変わらない)
+   - 注意: `text-overflow:ellipsis` は `overflow` プロパティ名と完全一致しないため「宣言なし」として扱い、`;overflow:visible` を追記する(後述の `styleDeclaresOverflow()` で `;` 分割 + プロパティ名 trim/lowercase 完全一致で判定)
+3. **既存 `style` 属性あり、CSS プロパティ名が `overflow` と完全一致する宣言を含む**場合は触らない(冪等性確保、後処理を多重適用しても結果が変わらない)
    - 例: `<foreignObject style="overflow:hidden" ...>` → そのまま(他用途で意図的に hidden を指定しているケースを尊重)
 4. `format=png` のときは本後処理をスキップ(SVG 文字列を加工しない、REQ-E-05 と整合)
+5. **`data-style` 等の非 `style` 属性は対象外**: 属性検出正規表現 `(^|\s)style=` を使い `data-style=` への誤マッチを防ぐ(単語境界 `\b` は `-` を境界とみなし `data-style` 内の `style` にもマッチするため使用しない)
 
 #### 7.3.5 実装位置
 
 `src/renderer/postProcess.ts` の `applyPostProcess()` パイプラインに、`forceForeignObjectOverflowVisible(svg)` 関数を追加。`format=svg` のときに `rewrite_ids` / `strip_max_width` と同じ後処理ブロック内で必ず呼び出す(順序は問わない、独立した文字列加工)。
 
+実装の主要正規表現 2 パターン:
+- **Pattern 1**: `/<foreignObject\b([^>]*)>/gi` — `<foreignObject` 開始タグを全件マッチ(大小文字不問)
+- **Pattern 2**: `/(^|\s)style=(["'])([\s\S]*?)\2/i` — タグ内属性列から `style=` を検出(先行が空白または文字列先頭のみ許可し `data-style` を排除)
+
+`overflow` プロパティ名の判定はヘルパー関数 `styleDeclaresOverflow(styleValue: string): boolean` で行う。`styleValue.split(';')` で宣言単位に分解し、各宣言の `:` 左辺を `trim().toLowerCase()` して `'overflow'` と完全一致するものが存在すれば `true` を返す(正規表現ではなく文字列操作で `text-overflow` 等の誤判定を排除)。
+
 #### 7.3.6 検証
 
 - PROP-18(§5 正確性プロパティ)を fast-check で実装、`test/property/prop-18_*.property.test.ts`
 - Integration test: Case 10(`整理する<br>(手動 + ✓)`)を `format=svg` で生成し、Node B foreignObject の `style` に `overflow:visible` が含まれることを XML パースで確認
-- 視覚回帰: 2026-05-16 検証アーティファクト(`docs/svg-foreignobject-overflow-fix-verification-2026-05-16/patched/p{0..6}.svg`)を baseline として保持
+- 視覚回帰: 2026-05-16 検証アーティファクト(`docs/svg-foreignobject-overflow-fix-verification-2026-05-16/patched/p{0..6}.svg`)を NFR-02 画像差分検証の **baseline** として保持する。依存更新 PR(`@mermaid-js/mermaid-cli` 等の exact pin 更新)の際は、当該 baseline SVG との pixelmatch 差分が想定外の増大を示さないことを確認してから production rollout すること(C-M-09 / NFR-02)。
+
+**Phase 4.6 実装完了ステータス(2026-05-16)**:
+- 実装: `src/renderer/postProcess.ts` に `forceForeignObjectOverflowVisible()` + `styleDeclaresOverflow()` 追加済 + `applyPostProcess()` で `format=svg` 時に自動呼出
+- ユニットテスト: `test/unit/postProcess.foreignObjectOverflow.test.ts` (15 tests, 全 green。`text-overflow` 誤判定防止・`data-style` 誤認防止の回帰ケース含む)
+- 統合テスト: `test/integration/foreignObjectOverflow.test.ts` (4 tests, 全 green)
+- プロパティテスト: `test/property/prop-18_force_foreignobject_overflow.property.test.ts` (5 tests: 単体 3 + `applyPostProcess` format 境界 2, 200 runs, 全 green)
+- Docker 実機確認(2026-05-16): `docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml up -d` 後に `/render` で Case 10 を取得し、全 `<foreignObject>` に `style="overflow:visible"` を確認
+- playwright-cli `<img>` モード確認(2026-05-16): Node A「集める ✓(PrimeDrive 自動)」・Node B「整理する(手動 + ✓)」のテキストが完全表示(クリップなし)を確認
 
 ## 8. デプロイ戦略(test Docker → prod Docker 差し替え)
 
