@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-API="http://100.115.195.61:3100/render"
+API="${MERMAID_RENDER_API:-http://localhost:3100/render}"
 CASES="$DIR/scripts/cases.json"
 OUT_RENDER="$DIR/renders"
 OUT_CASES="$DIR/cases"
