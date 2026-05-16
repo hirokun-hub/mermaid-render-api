@@ -9,7 +9,7 @@
 | ID | 目標 | 達成手段の概略 | 関連要件 |
 |---|---|---|---|
 | **G-1** | 配布 HTML 用途で「美しい」既定出力 | Beautiful_Defaults を `src/config.ts` に集約、`themeCSS` で foreignObject クリップ抑制 | REQ-U-01, US-01〜US-03 |
-| **G-2** | コンシューマフォント差による視覚的見切れの解消 | `htmlLabels: true` 維持 + `themeCSS: ".label foreignObject { overflow: visible }"` 注入 | REQ-U-01, US-02 |
+| **G-2** | コンシューマフォント差による視覚的見切れの解消 | `htmlLabels: true` 維持 + `themeCSS: ".label foreignObject { overflow: visible }"`(HTML inline モード用)+ **SVG 後処理で `<foreignObject>` 要素に直接 `style="overflow:visible"` を inline 注入**(standalone SVG / `<img>` / GitHub Markdown 対応、§7.3) | REQ-U-01, **REQ-U-09**, US-02 |
 | **G-3** | レイテンシ短縮(req あたり 1〜2 秒 → 0.1〜0.3 秒) | `mmdc` subprocess → `renderMermaid()` Programmatic_API + Browser_Pool 共有 | REQ-U-08, US-07, NFR-01 |
 | **G-4** | リクエスト形状の後方互換維持・出力構造の安全性 | 新フィールドは全て optional / Server_Locked_Setting で固定 | REQ-U-02, REQ-UN-01〜04 |
 
@@ -164,7 +164,7 @@ sequenceDiagram
 |---|---|---|
 | `theme` | `"base"` | 親システム既定継承 |
 | `themeVariables.fontFamily` | `'"Noto Sans CJK JP", "IPAexGothic", sans-serif'` | 親システム既定継承(サーバ側 Noto 同梱) |
-| `themeCSS` | `.label foreignObject { overflow: visible; }` | G-2(C-H-03 対応) |
+| `themeCSS` | `.label foreignObject { overflow: visible; }` | G-2(C-H-03 対応)。ただしこの themeCSS は **HTML inline 描画モード限定**で、`<img>` 経由 / GitHub Markdown 等の **standalone SVG モードでは失効する**(Mermaid 出力時のセレクタ小文字化 + SVG namespace の case-sensitive 判定、`requirements.md` C-H-03 / `docs/expert-reviews/2026-05-16_foreignobject-clip-and-font-metrics-best-practices.md` §4.2)。standalone モードでも見切れを防ぐため、§7.3 の SVG 後処理(`forceForeignObjectOverflowVisible`)で `<foreignObject>` 要素に直接 `style="overflow:visible"` を inline 注入する(REQ-U-09) |
 | `htmlLabels` | `true`(root レベル) | C-M-02 / REQ-UN-02 / G-2 |
 | `securityLevel` | `"strict"` | C-S-01(Server_Locked_Setting と二重指定) |
 | `suppressErrorRendering` | `true` | REQ-U-07 |
@@ -571,6 +571,7 @@ interface RenderContext {
 | **PROP-15** | `mermaid_config` に allowlist 外の未知キー(例: `nonexistent_key: 1`、`unsupportedDiagram: {}` 等、`SERVER_LOCKED_SETTINGS` のキーには該当しないもの)を送信 → 値が無視され、警告 `unknown_key` が記録される。`SERVER_LOCKED_SETTINGS` キー(`securityLevel` / `maxTextSize` / `maxEdges` / `startOnLoad` / `secure`)送信時は警告 `locked_setting_override_ignored` を記録する | REQ-E-06 |
 | **PROP-16** | `RENDERER_MODE=cli` で起動 → `mmdc` subprocess 経由でレンダリングが成功する(レイテンシは劣化、機能は等価) | NFR-06 |
 | **PROP-17** | `/metrics` を GET → Prometheus 形式で必須メトリクス 8 系統が含まれる | NFR-05 |
+| **PROP-18** | `format=svg` レスポンスのすべての `<foreignObject>` 要素の `style` 属性に `overflow:visible` が含まれる(冪等; 既に `overflow` 宣言があるノードは触らず、他宣言があるノードには `;overflow:visible` が追記される)。`format=png` レスポンスでは適用されない。Case 10 相当(CJK + 半角混在)の SVG を `<img>` モード描画してもクリップしない(2026-05-16 の 7 パターン × 14 ノード検証で確認済) | REQ-U-09, C-H-03 |
 
 各プロパティは `test/property/*.property.test.ts` に fast-check ベースで実装する(§10)。
 
@@ -645,7 +646,15 @@ function extractMermaidError(rawErrorText: string): {
 
 ## 7. Post Process 設計
 
-本改修で実装する Post_Process_Option は **`rewrite_ids`(SVG 生成時に適用)** と **`strip_max_width`(SVG 生成後に適用)** の 2 種類。それぞれの責務と仕様を以下に定義する。
+本改修で実装する SVG 後処理は次の 3 つ:
+
+| 種別 | キー | 利用者制御 | 適用タイミング |
+|---|---|---|---|
+| Post_Process_Option(利用者オプション) | `rewrite_ids` | 利用者が指定可能(default `true`) | SVG 生成時(Programmatic)または生成後(CLI) |
+| Post_Process_Option(利用者オプション) | `strip_max_width` | 利用者が指定可能(default `false`) | SVG 生成後 |
+| サーバ保証(利用者制御不可) | `forceForeignObjectOverflowVisible` | **常時オン**(オプトアウト不可) | SVG 生成後 |
+
+`rewrite_ids` / `strip_max_width` は `mermaid-image-converter/requirements.md` の Post_Process_Option として利用者がリクエストで指定する。`forceForeignObjectOverflowVisible` は REQ-U-09 に基づくサーバ側の不変保証で、API に対応するオプションは公開しない。それぞれの責務と仕様を以下に定義する。
 
 ### 7.1 ID 衝突対策(軽量版): `rewrite_ids`
 
@@ -676,6 +685,47 @@ function extractMermaidError(rawErrorText: string): {
   - Before: `<svg ... style="MAX-WIDTH:300PX">` → After: `<svg ... >`(大小文字無視)
 - 既定動作: `Beautiful_Defaults` の `useMaxWidth: false` 下では Mermaid が `style="max-width:..."` を付与しないため、通常は **no-op**。`useMaxWidth: true` をユーザーが Mermaid_Config_Override で上書きした場合や、将来 Mermaid 側挙動が変わった場合の防御として残す
 - `format=png` 同時指定時の扱い: REQ-E-05 に従い無視 + 警告ログ(`svg_only_option_in_png`)
+
+### 7.3 foreignObject overflow:visible の強制注入: `forceForeignObjectOverflowVisible`(REQ-U-09)
+
+#### 7.3.1 背景
+
+`docs/expert-reviews/2026-05-16_foreignobject-clip-and-font-metrics-best-practices.md` §4.2 で同定したとおり、Mermaid の出力 SVG 内の `<style>` ブロックには `.label foreignobject { overflow: visible; }`(セレクタは小文字)が焼き込まれる。HTML 文書内に `<svg>` を inline 配置した場合は HTML パーサがタグ名を小文字化するため、case-insensitive 判定でこのセレクタが `<foreignObject>` 要素にマッチして `overflow: visible` が効く。一方、`<img src=...>` 経由・`.svg` 直接・GitHub Markdown 等の **standalone SVG モード**では SVG が XML namespace で解釈され、CSS セレクタはタグ名 case-sensitive となるため、小文字セレクタは camelCase の `<foreignObject>` にマッチせず、SVG 仕様デフォルトの `overflow: hidden` が効いてしまい、コンシューマ側フォント差で生じた `<foreignObject>` 外の文字がクリップされる。
+
+本後処理はこの問題を、CSS セレクタを経由せず**各 `<foreignObject>` 要素の `style` 属性に直接 `overflow:visible` を inline 付与**することで根本回避する。属性レベルの指定は SVG / HTML / XML どのパース経路でも変わらず効くため、レンダリングモードに依らず一貫した挙動を得る。
+
+#### 7.3.2 適用範囲・タイミング
+
+- 適用経路: **SVG 生成後**(`src/renderer/postProcess.ts` 内、`rewrite_ids` / `strip_max_width` 系と同じ後処理パイプライン)
+- 適用対象: `format=svg` レスポンスのみ
+- 適用範囲: SVG 文字列中の**すべての** `<foreignObject>` 要素(ノードラベル用、edge ラベル用、`width=0` のプレースホルダ含む)
+- 利用者制御: なし(常時オン、オプトアウト不可、API に公開する設定キーなし)
+- 副作用: `<foreignObject>` の `width` / `height` 属性および `<rect>` の寸法は変更しない。レイアウト計算・edge 接続点・marker 配置に影響なし。`overflow:visible` は SVG 内 foreignObject の clip 挙動のみを変える(2026-05-16 の 7 パターン検証で副作用ゼロ確認、`docs/svg-foreignobject-overflow-fix-verification-2026-05-16.md` §F-1 案の確証された特性)
+
+#### 7.3.3 処理仕様
+
+入力: SVG 文字列 `svg: string`(`renderMermaid()` 戻り値 + 他の後処理適用後)
+出力: 同じ SVG 文字列で、すべての `<foreignObject>` 要素の `style` 属性に `overflow:visible` が含まれる文字列
+
+#### 7.3.4 マッチング規則(冪等)
+
+1. **既存 `style` 属性なし**の `<foreignObject>` には `style="overflow:visible"` を新規追加
+   - 例: `<foreignObject width="69.80" height="48">` → `<foreignObject style="overflow:visible" width="69.80" height="48">`
+2. **既存 `style` 属性あり、`overflow` 宣言を含まない**場合は既存 `style` の末尾に `;overflow:visible` を追記
+   - 例: `<foreignObject style="color:black" ...>` → `<foreignObject style="color:black;overflow:visible" ...>`
+3. **既存 `style` 属性あり、`overflow` 宣言を含む**場合は触らない(冪等性確保、後処理を多重適用しても結果が変わらない)
+   - 例: `<foreignObject style="overflow:hidden" ...>` → そのまま(他用途で意図的に hidden を指定しているケースを尊重)
+4. `format=png` のときは本後処理をスキップ(SVG 文字列を加工しない、REQ-E-05 と整合)
+
+#### 7.3.5 実装位置
+
+`src/renderer/postProcess.ts` の `applyPostProcess()` パイプラインに、`forceForeignObjectOverflowVisible(svg)` 関数を追加。`format=svg` のときに `rewrite_ids` / `strip_max_width` と同じ後処理ブロック内で必ず呼び出す(順序は問わない、独立した文字列加工)。
+
+#### 7.3.6 検証
+
+- PROP-18(§5 正確性プロパティ)を fast-check で実装、`test/property/prop-18_*.property.test.ts`
+- Integration test: Case 10(`整理する<br>(手動 + ✓)`)を `format=svg` で生成し、Node B foreignObject の `style` に `overflow:visible` が含まれることを XML パースで確認
+- 視覚回帰: 2026-05-16 検証アーティファクト(`docs/svg-foreignobject-overflow-fix-verification-2026-05-16/patched/p{0..6}.svg`)を baseline として保持
 
 ## 8. デプロイ戦略(test Docker → prod Docker 差し替え)
 

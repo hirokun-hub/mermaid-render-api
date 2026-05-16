@@ -28,7 +28,7 @@
          |
         Phase 4.5 (依存脆弱性修復)
          |
-        Phase 4.6 (flowchart.padding 反映 / C-M-01 実証アップデート)
+        Phase 4.6 (SVG 後処理: foreignObject overflow:visible 強制注入 / REQ-U-09 実装)
          |
         Phase 5 (テスト集約)
          |
@@ -53,7 +53,7 @@
 | **Phase 3** | 観測 / レート制御層(observability + rateLimiter) | P-07, P-08 | 13, 17 | Phase 0 |
 | **Phase 4** | サーバ統合 + Docker | P-09, P-10, P-11 | 1, 2, 4, 7, 10, 16 | Phase 1, Phase 2, Phase 3 |
 | **Phase 4.5** | Security dependency remediation | design.md §9 | REQ-D-01〜09 | Phase 4 |
-| **Phase 4.6** | BEAUTIFUL_DEFAULTS に `flowchart.padding` を追加(C-M-01 実証アップデート反映) | H-1〜H-7 | 3 拡張, 新規 18 | Phase 4.5 |
+| **Phase 4.6** | SVG 後処理: foreignObject overflow:visible の強制注入(REQ-U-09 実装、配布 HTML embed のクリップ完全対策) | H-1〜H-7 | 新規 18 | Phase 4.5 |
 | **Phase 5** | テスト集約(property 18 個 + integration) | P-12 | 1〜18 | Phase 4.6 |
 | **Phase 6** | デプロイ + 性能計測(blue/green + NFR-01) | P-13, P-14, P-15 | NFR-01 達成判定 | Phase 5 |
 
@@ -511,76 +511,89 @@
 
 ---
 
-## 7. Phase 4.6 BEAUTIFUL_DEFAULTS に flowchart.padding を追加(C-M-01 実証アップデート反映)
+## 7. Phase 4.6 SVG 後処理: foreignObject overflow:visible の強制注入(REQ-U-09 実装)
 
-**Validates:** REQ-U-01, REQ-U-03, REQ-E-01, US-03, C-M-01(改訂後)
-**PROP:** PROP-3(優先順マージ拡張), 新規 **PROP-18**(`mermaid_config.flowchart.padding=N` の指定が SVG ノード内側余白に線形反映: `rect.width − foreignObject.width = 4N` / `rect.height − foreignObject.height = 2N`、2026-05-16 実機検証由来 — `docs/svg-node-padding-verification-2026-05-13.md` の "Conclusion Update — Padding Probe" 参照)
+**Validates:** REQ-U-09(新規)、REQ-U-04, US-02, C-H-03(改訂後)
+**PROP:** 新規 **PROP-18**(`format=svg` の全 `<foreignObject>` 要素の `style` 属性に `overflow:visible` を含む、冪等、`<img>` モード描画で Case 10 等のクリップなし)
 **依存:** Phase 4.5 完了
-**並行可能:** Phase 5 と並行可
+**並行可能:** なし(本フェーズが Phase 5 テスト集約の前段に位置)
 
 ### 背景
 
-`requirements.md` C-M-01 は当初「`flowchart.padding` は dagre-wrapper で効かない前提」としていたが、2026-05-16 の実機検証(Mermaid `11.15.0` bundled、`defaultRenderer: "dagre-wrapper"`、`htmlLabels: true`)で **`flowchart.padding` が線形に効く**ことを確認したため、C-M-01 を改訂し、`BEAUTIFUL_DEFAULTS` に `flowchart.padding: 8`(内側余白 `32 × 16`)を採用する。schema コメント由来の挙動保証は無いため、Mermaid 依存更新時(NFR-02)は画像差分で本前提が崩れていないか再検証する。
+2026-05-16 の実機検証(`docs/svg-foreignobject-overflow-fix-verification-2026-05-16.md`、`docs/expert-reviews/2026-05-16_foreignobject-clip-and-font-metrics-best-practices.md`)で次の 2 つの独立した事実が確定:
 
-### H-1 `[TDD]` flowchart.padding 線形反映の integration test
+1. Mermaid の `foreignObject.width` 予測はサーバ側 `Noto Sans CJK JP` で計算されるが、コンシューマ側フォント(macOS Hiragino、Windows Meiryo / Yu Gothic 等)で半角 ASCII / 半角空白 / `+` / 半角括弧 / Unicode dingbat(`✓`)を描画したときに `+0〜+15px` のズレが生じる。**日本語 / 全角は無関係、純 ASCII でも発生**
+2. `themeCSS: ".label foreignObject { overflow: visible; }"` は Mermaid 出力時に小文字 `foreignobject` セレクタに変換される。HTML inline 描画(`<svg>` 直接埋込)では HTML パーサのタグ名小文字化で効くが、**standalone SVG 描画(`<img>` 経由、GitHub Markdown、`.svg` 直接、`object`/`embed`)では SVG namespace が case-sensitive のため失効**し、SVG 仕様デフォルトの `overflow: hidden` が effective になって `<foreignObject>` 境界でテキストがクリップされる
 
-- [ ] [TDD] 失敗テスト先行: `mermaid_config.flowchart.padding=4` で render → 全 rect ノードの内側余白が `16 × 8`(横 = `rect.width − foreignObject.width`、縦 = 同じく高さ差)
-- [ ] [TDD] 失敗テスト先行: `mermaid_config.flowchart.padding=8` で render → `32 × 16`
-- [ ] [TDD] 失敗テスト先行: `mermaid_config.flowchart.padding=30` で render → `120 × 60`
-- [ ] 検証ロジック: SVG をパースし `<rect class="basic label-container">` とそのノードの `<foreignObject>` の `width/height` 差分を計測。多ノード図でも全ノードで一致を要求
+公式 Mermaid プロジェクトでも 2019 年([#790](https://github.com/mermaid-js/mermaid/issues/790))から認識・[#7354](https://github.com/mermaid-js/mermaid/issues/7354)(2026-01、創設者 knsv が "Approved for investigation" コメント)で再発確認済の長期未解決バグ。`htmlLabels: false` は v11.11+ で別のバグ(C-M-03)を踏むため公式回避策として採用不可。
 
-### H-2 `src/config.ts` BEAUTIFUL_DEFAULTS に flowchart.padding: 8 を追加
+本フェーズで **SVG 後処理にて各 `<foreignObject>` 要素に直接 `style="overflow:visible"` を inline 注入**し、レンダリングモードに依らず一貫してクリップを抑制する。7 パターン × 14 ノード検証で「全ケースで `<img>` モード描画のクリップ消滅、副作用ゼロ」を実証済(`docs/svg-foreignobject-overflow-fix-verification-2026-05-16.md` §視覚的検証 / §F-1 案の確証された特性)。
 
-- [ ] `BEAUTIFUL_DEFAULTS.flowchart` に `padding: 8` を追加(内側余白 `32 × 16`、Mermaid default 15 → `60 × 30` の約半分)
-- [ ] [TDD] 失敗テスト先行: リクエストで `mermaid_config` を一切指定しない場合、Case 02 の SVG ノード内側余白が `32 × 16` になる
-- [ ] [TDD] 失敗テスト先行: `mermaid_config.flowchart.padding=60` で上書きすると `240 × 120` に変わる(優先順 BEAUTIFUL_DEFAULTS → user override の検証、PROP-3 拡張)
+> なお、当初 Phase 4.6 で予定していた `BEAUTIFUL_DEFAULTS.flowchart.padding: 8` の採用は **撤回**した。本フェーズの F-1 強制注入でクリップ問題が rect 内側余白の調整なしに完全解消するため、padding はそのまま Mermaid 既定値(15、内側余白 60×30)で残し、利用者が必要に応じて `mermaid_config.flowchart.padding` で上書きする方針(YAGNI)。`flowchart.padding` が `dagre-wrapper` で効くという事実(C-M-01 改訂)は requirements.md / design.md に保存済。
 
-### H-3 `[TDD]` PROP-18 property test の追加
+### H-1 `[TDD]` 後処理関数の新規実装
 
-- [ ] [TDD] 失敗テスト先行(`test/property/prop-18_flowchart_padding_linear.property.test.ts`): 任意の `padding ∈ [1, 50]` の整数で `差分横 = 4 × padding` / `差分縦 = 2 × padding` が成立(fast-check `fc.integer({ min: 1, max: 50 })`)
-- [ ] `describe` に `Validates: REQ-E-01 / US-03 / C-M-01(改訂後)` タグを記載
+- [ ] [TDD] 失敗テスト先行(`test/unit/postProcess.foreignObjectOverflow.test.ts`):
+  - 既存 `style` 属性なしの `<foreignObject>` に `style="overflow:visible"` が新規付与される
+  - 既存 `style` 属性ありで `overflow` 宣言を含まない場合、末尾に `;overflow:visible` が追記される
+  - 既存 `style` 属性ありで `overflow` 宣言を含む場合は変更されない(冪等)
+  - 多重適用しても結果が変わらない(冪等の二重確認)
+- [ ] `src/renderer/postProcess.ts` に `forceForeignObjectOverflowVisible(svg: string): string` 関数を実装(`design.md` §7.3 仕様準拠、正規表現 2 パターン)
 
-### H-4 unit test の更新
+### H-2 後処理パイプラインへの組込み
 
-- [ ] `test/unit/buildRequestMermaidConfig.test.ts` を更新: `BEAUTIFUL_DEFAULTS.flowchart.padding=8` が user override で上書きされ、`SERVER_LOCKED_SETTINGS` の最終強制適用は影響しない(PROP-3 系の境界拡張)
-- [ ] `BEAUTIFUL_DEFAULTS` の deep clone snapshot test(あれば)に `flowchart.padding` キーが含まれることを確認
+- [ ] `applyPostProcess()` 内で `format === 'svg'` のとき必ず `forceForeignObjectOverflowVisible(svg)` を呼び出す(`rewrite_ids` / `strip_max_width` と独立、順序は問わない)
+- [ ] `format === 'png'` のときは呼び出さない(SVG 文字列加工対象外)
+- [ ] [TDD] 失敗テスト先行: `format=png` リクエストでは SVG 文字列加工が一切発生しない(本後処理を含む全ての SVG-only 後処理)
 
-### H-5 受入基準サマリの追補
+### H-3 `[TDD]` Integration test(Case 10 等の clip 解消)
 
-- [ ] `requirements.md` §6 受入基準サマリに行追加: 「`mermaid_config.flowchart.padding=N` を指定すると SVG ノード内側余白が `4N × 2N` に変わる」(関連 REQ: REQ-U-03 / REQ-E-01、関連 US: US-03、関連 C: C-M-01 改訂後)
+- [ ] [TDD] 失敗テスト先行(`test/integration/foreignObjectOverflow.test.ts`):
+  - Case 10 (`flowchart TD\n  A["集める ✓<br>(PrimeDrive 自動)"] --> B["整理する<br>(手動 + ✓)"]`)で SVG を生成
+  - 全 `<foreignObject>` 要素(Node A、Node B、edge label)の `style` 属性が `overflow:visible` を含むことを XML パースで検証
+  - 純 ASCII Case(`"(test + ok)"` 等)でも同様に `style` 属性が含まれることを検証
+- [ ] `docs/svg-foreignobject-overflow-fix-verification-2026-05-16/patched/p{0..6}.svg` を baseline として比較(F-1 適用後の SVG と現行実装の出力が構造同等であること)
 
-### H-6 検証ドキュメントの追補
+### H-4 `[TDD]` PROP-18 property test
 
-- [ ] `docs/svg-node-padding-verification-2026-05-13/` 直下に `after-padding-tuning-case-02.svg` / `after-padding-tuning-case-02.png` / `after-padding-tuning-case-10.svg` / `after-padding-tuning-case-10.png` を追加(Beautiful Defaults `padding: 8` 適用後の baseline)
-- [ ] `docs/svg-node-padding-verification-2026-05-13.md` の "Conclusion Update — Padding Probe" の末尾に「Beautiful Defaults 適用後の再計測」セクションを追加し、Case 02 / Case 10 内側余白が `60 × 30` → `32 × 16` に縮んだことを表で示す
+- [ ] [TDD] 失敗テスト先行(`test/property/prop-18_force_foreignobject_overflow.property.test.ts`):
+  - fast-check で任意の Mermaid flowchart 入力(ノード数 ∈ [1, 10]、ラベル文字列はランダム)を生成
+  - 全 `<foreignObject>` 要素の `style` 属性に `overflow:visible` が含まれる(冪等性、`format=svg` 時のみ適用)
+- [ ] `describe` に `Validates: REQ-U-09 / C-H-03(改訂後) / US-02` タグを記載
+- [ ] 検証ロジック: SVG 文字列を DOMParser でパースし、すべての `<foreignObject>` の `getAttribute('style')` が `overflow:visible`(または `overflow: visible`、`overflow=visible` 含む) を含むことを確認
 
-### H-7 NFR-02 画像差分検証手順の補強
+### H-5 既存 PROP の regression 確認
 
-- [ ] Mermaid / `@mermaid-js/mermaid-cli` 依存更新時の検証手順(`design.md` 該当節 または `docs/dependency-overrides.md`)に「Case 02 / Case 10 の `rect.size − foreignObject.size` 差分が `padding × {4, 2}` の関係を保つこと」を必須項目として明記
+- [ ] PROP-1(後方互換)、PROP-4(`format=png` で SVG 専用オプション無視)、PROP-10(構文エラー時の "Syntax error" 図混入防止)が本後処理導入後も無修正で green であることを `vitest run` で確認
+- [ ] 既存の `rewrite_ids` / `strip_max_width` 後処理と並列で動作することを確認(順序依存なし、独立性確認)
+
+### H-6 受入基準サマリの最終確認
+
+- [ ] `requirements.md` §6 受入基準サマリの REQ-U-09 関連 4 行(本日追加済)が、`vitest run` の green ステータスと連動していることを確認
+
+### H-7 検証アーティファクトの baseline 化
+
+- [ ] `docs/svg-foreignobject-overflow-fix-verification-2026-05-16/patched/p{0..6}.svg`(本日生成済の 7 ファイル)を NFR-02 画像差分検証の baseline として明示する文書追記を `design.md` §7.3.6 または `docs/dependency-overrides.md` に追加
 
 ### Phase 4.6 受入基準
 
-- [ ] `vitest run test/integration/flowchartPadding.test.ts test/unit/buildRequestMermaidConfig.test.ts test/property/prop-18_flowchart_padding_linear.property.test.ts` で PROP-3 拡張 / PROP-18 が green
-- [ ] Beautiful Defaults 適用後の SVG: Case 02 / Case 10 ともに全 rect ノードの内側余白が `32 × 16` になっており、`padding=N` 上書きで `4N × 2N` に線形変化することが integration test で確認できる
+- [ ] `vitest run test/unit/postProcess.foreignObjectOverflow.test.ts test/integration/foreignObjectOverflow.test.ts test/property/prop-18_force_foreignobject_overflow.property.test.ts` で PROP-18 が green
 - [ ] 既存 PROP-1〜17 が無修正のまま green(後方互換)
 - [ ] `grep -oE 'PROP-[0-9]+' .kiro/specs/beautiful-svg-rendering/tasks.md | sort -u | wc -l` が **18** になる
+- [ ] `docker compose up` 後の実機 `/render` で Case 10 を curl 取得し、SVG 文字列内の全 `<foreignObject>` に `style="overflow:visible"` が含まれることを目視確認
+- [ ] 配布 HTML embed テスト: 生成 SVG を `<img src=...>` 経由で表示し、Node B `(手動 + ✓)` の `)` が見切れないことを GitHub Markdown プレビューまたは playwright-cli `<img>` モードで確認
 
 ### Phase 4.6 対象ファイル
 
 | 種別 | パス |
 |---|---|
-| 拡張 | `src/config.ts` |
-| 新規 | `test/integration/flowchartPadding.test.ts` |
-| 新規 | `test/property/prop-18_flowchart_padding_linear.property.test.ts`(Phase 5 で F-1 配下に再配置可) |
-| 拡張 | `test/unit/buildRequestMermaidConfig.test.ts` |
-| 拡張 | `.kiro/specs/beautiful-svg-rendering/requirements.md`(§6 受入基準サマリ) |
-| 拡張 | `.kiro/specs/beautiful-svg-rendering/design.md`(必要に応じて §5 正確性プロパティ表に PROP-18 を追加) |
-| 拡張 | `.kiro/specs/beautiful-svg-rendering/tasks.md`(本フェーズの追加 + Phase 5 F-1 への PROP-18 追記 + §11 PROP 件数更新) |
-| 拡張 | `docs/svg-node-padding-verification-2026-05-13.md` |
-| 新規 | `docs/svg-node-padding-verification-2026-05-13/after-padding-tuning-case-02.svg` |
-| 新規 | `docs/svg-node-padding-verification-2026-05-13/after-padding-tuning-case-02.png` |
-| 新規 | `docs/svg-node-padding-verification-2026-05-13/after-padding-tuning-case-10.svg` |
-| 新規 | `docs/svg-node-padding-verification-2026-05-13/after-padding-tuning-case-10.png` |
+| 拡張 | `src/renderer/postProcess.ts`(`forceForeignObjectOverflowVisible(svg)` 関数追加 + `applyPostProcess()` 内で format=svg のとき自動呼出) |
+| 新規 | `test/unit/postProcess.foreignObjectOverflow.test.ts` |
+| 新規 | `test/integration/foreignObjectOverflow.test.ts` |
+| 新規 | `test/property/prop-18_force_foreignobject_overflow.property.test.ts`(Phase 5 で F-1 配下に再配置可) |
+| 確認のみ(無修正) | `.kiro/specs/beautiful-svg-rendering/requirements.md`(REQ-U-09 / C-H-03 / 受入基準サマリは 2026-05-16 に追加済) |
+| 確認のみ(無修正) | `.kiro/specs/beautiful-svg-rendering/design.md`(§1.1 G-2 / §3.1 / §5 PROP-18 / §7.3 は 2026-05-16 に追加済) |
+| 拡張 | `.kiro/specs/beautiful-svg-rendering/tasks.md`(本フェーズの書き直し + Phase 5 F-1 への PROP-18 追記 + §11 PROP 件数確認) |
 
 ---
 
@@ -645,7 +658,7 @@
 | 新規 | `test/property/prop-15_unknown_key_and_locked.property.test.ts` |
 | 新規 | `test/property/prop-16_renderer_mode_cli.property.test.ts` |
 | 新規 | `test/property/prop-17_metrics_endpoint.property.test.ts` |
-| 新規 | `test/property/prop-18_flowchart_padding_linear.property.test.ts` |
+| 新規 | `test/property/prop-18_force_foreignobject_overflow.property.test.ts` |
 | 拡張 | `test/integration/render.test.ts` |
 | 拡張 | `test/integration/rateLimitTimeout.test.ts` |
 | 拡張 | `test/helpers/server.ts` |

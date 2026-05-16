@@ -219,6 +219,69 @@ rect.width = foreignObject.width + 4 × flowchart.padding
 
 **結論**: 「日本語 / 全角」 ではなく、**「半角 ASCII / 半角記号 / Unicode dingbat(✓ 等)」が原因**。日本語環境で目立つのは、日本語ラベルでこれら半角文字(括弧・空白・`+`・`✓`)が混在する慣習があるため。
 
+### 4.5 Mermaid 公式プロジェクトの認識(GitHub Issues 調査、2026-05-16)
+
+#### 4.5.1 把握状況: 2019 年から複数 issue で認識済
+
+| Issue | 状態 | ラベル | Reporter のサンプル |
+|---|---|---|---|
+| **[#790](https://github.com/mermaid-js/mermaid/issues/790)** "Text is cut off in SVG exported from live editor" | 2019 Closed(`Retained` ラベルで保持指定) | Type: Bug / Error, Status: Approved, Contributor needed, **Retained** | `A[Something] -->|begets| B[Something]`(**純 ASCII**) |
+| **[#7354](https://github.com/mermaid-js/mermaid/issues/7354)** "Long text clipped in flowchart boxes" | **Open**(2026-01-28、最終更新 2026-03-11) | Type: Bug / Error, **Status: Approved**, Graph: Flow | `A[Christmas test test test long line test test]`(**純 ASCII**) |
+| **[#2688](https://github.com/mermaid-js/mermaid/issues/2688)** "Replace foreignObject with standard SVG" | Open | — | foreignObject 自体の置換提案 |
+| **[#1845](https://github.com/mermaid-js/mermaid/issues/1845)** "SVG output lacks SVG standards conformance" | Open | Type: Bug / Error | Inkscape / LaTeX 等の外部ツール失敗 |
+| **[#114](https://github.com/mermaid-js/mermaid-cli/issues/114)** (mermaid-cli) "Flow chart label text is truncated" | Open | — | 純英語 system architecture diagram |
+| **[#58](https://github.com/mermaid-js/mermaid/issues/58)** "Generated SVG works poorly outside web browsers" | Open | — | 最古の foreignObject + `<div>` 互換性指摘(2014) |
+
+#### 4.5.2 Mermaid 創設者の関与
+
+[#7354](https://github.com/mermaid-js/mermaid/issues/7354) で Mermaid 創設者 **knsv (Knut Sveidqvist)** が直接コメント:
+
+> [sisyphus-bot] Thanks for the clear report and screenshot! This looks like a regression in text wrapping / node sizing for flowchart boxes. **Approved for investigation.**
+
+→ 創設者本人が「バグとして調査承認」と表明している。
+
+#### 4.5.3 英語 / ASCII 環境でも発生することの公式裏取り
+
+すべての公式 issue の reporter が**純 ASCII / 英語のサンプル**を使用:
+
+- #790: `graph TD\nA[Something] -->|begets| B[Something]`
+- #7354: `flowchart TD\nA[Christmas test test test long line test test] -->|Get money| B(Go shopping)`
+- #114(mermaid-cli): 純英語 system architecture diagram
+
+→ §4.4 の「日本語 / 全角だからではない」結論を、**Mermaid 公式 issue 側からも裏付け**できる。
+
+#### 4.5.4 §4.2(CSS 大小文字判定)に関する公式上の状況
+
+本書 §4.2 で同定した「`themeCSS` の `foreignobject` セレクタが standalone SVG では `<foreignObject>` 要素にマッチしない」根本原因は、**Mermaid 公式 issue でこの形では文書化されていない**(2026-05-16 時点で本書執筆時点の調査)。
+
+ただし [#790](https://github.com/mermaid-js/mermaid/issues/790) のコメントで User `FiyaFly` が 2019 年に近い症状を報告:
+
+> I was able to address this issue when using the CLI to generate PNG by adding CSS to the parent element for `edgeLabel`. The `foreignObject` width is too narrow for labels to be properly displayed, so it should allow for overflow (I think the math might be slightly off when calculating the label width).
+> ```
+> .label foreignObject { overflow: visible; }
+> ```
+> **It doesn't seem to be working for SVG**, but it might be a similar issue.
+
+「PNG では効くが SVG では効かない」という症状観察は 2019 年から存在していたが、その根本原因が「**Mermaid が `themeCSS` を小文字化することと SVG namespace の case-sensitive セレクタ判定の組合せ**」であることの特定は、本書(2026-05-16)が(調査範囲では)初。
+
+#### 4.5.5 公式が推奨するワークアラウンドと既知の限界
+
+Mermaid 公式 issue で複数回言及される回避策:
+
+- **`flowchart: { htmlLabels: false }`**: `<foreignObject>` を使わず SVG `<text>` で描画 → 本問題回避
+  - ただし v11.11+ で別の既知バグ多数(`docs/expert-reviews/2026-05-10_mermaid-svg-rendering-best-practices.md` §3.4 参照、issue [#7015](https://github.com/mermaid-js/mermaid/issues/7015), [#7016](https://github.com/mermaid-js/mermaid/issues/7016), [#1177](https://github.com/mermaid-js/mermaid/issues/1177))
+  - Mermaid メンテナ aloisklink([#2688](https://github.com/mermaid-js/mermaid/issues/2688) コメント)も「**`htmlLabels: false` をデフォルトにすべきか議論中**」と認識
+- **`themeCSS` で `overflow: visible` 注入**: 本書で否定済(standalone SVG モードでは効かない)
+
+#### 4.5.6 結論
+
+| 質問 | 回答 |
+|---|---|
+| 公式は把握済みか | **Yes**(2019 年から、創設者本人が approved コメント) |
+| バグ扱いか | **Yes**(`Type: Bug / Error` + `Status: Approved`、複数 issue で 7 年以上未解決) |
+| 英語環境でも起きるか | **Yes**(公式 issue の reporter サンプルがすべて純 ASCII) |
+| 本書の新規貢献 | §4.2 で CSS セレクタ大小文字判定の根本原因を初同定。公式 issue では症状観察止まりだった |
+
 ---
 
 ## 5. 影響と運用上の制約

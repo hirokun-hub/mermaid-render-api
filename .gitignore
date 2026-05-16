@@ -47,6 +47,9 @@ desktop.ini
 .classpath
 .settings/
 
+# Browser automation artifacts (playwright-cli session snapshots/screenshots)
+.playwright-cli/
+
 # Temporary files
 tmp/
 temp/
