@@ -11,6 +11,12 @@
 - Mermaid Frontmatter（YAML）を使用するため、Mermaid v10.5.0+ を含むCLI（例: `@mermaid-js/mermaid-cli`）を利用する
 - Windows Docker環境で動作すること
 
+### 技術的制約（開発環境）
+
+- CodexのApps Connector（GitHub / Gmail / Google Calendar等）は、`codex_apps` MCP clientの起動に失敗すると利用できない。`tools/list`が30秒以内に返らず `failed to get client` になる場合、リポジトリ内の実装・テスト作業自体には影響しないが、PR確認・メール検索・カレンダー確認などの外部連携は利用不能になる。
+- Codexの連携設定や認証情報を調査する場合、`~/.codex/auth.json` はアクセストークンを含む秘密情報として扱い、本文をログ・Issue・チャットへ貼り付けてはならない。
+- Codex Apps Connectorの不調を切り分ける場合は、`~/.codex/log/codex-tui.log`、`~/.codex/config.toml`、`~/.codex/cache/codex_apps_tools/` を確認対象とし、設定変更やキャッシュ退避はCodexを再起動する前提で行う。
+
 ### 利用シナリオ（In Scope）
 
 - Tailscale経由で、iPhone/iPad/MacからWindows上のDockerへアクセスして利用できることを想定する
