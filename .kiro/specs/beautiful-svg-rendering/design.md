@@ -743,6 +743,61 @@ function extractMermaidError(rawErrorText: string): {
 - Docker 実機確認(2026-05-16): `docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml up -d` 後に `/render` で Case 10 を取得し、全 `<foreignObject>` に `style="overflow:visible"` を確認
 - playwright-cli `<img>` モード確認(2026-05-16): Node A「集める ✓(PrimeDrive 自動)」・Node B「整理する(手動 + ✓)」のテキストが完全表示(クリップなし)を確認
 
+### 7.4 foreignObject 内側ラベルのセンタリング強制: `forceForeignObjectInnerCentered`(REQ-U-10)
+
+#### 7.4.1 背景
+
+REQ-U-09(F-1)の `overflow:visible` 注入により、コンシューマ側フォント差で内側 cell が foreignObject より広くなった場合でも文字がクリップされなくなった。しかしフォント差がある場合、内側 `<div style="display:table-cell">` は foreignObject の**左端アンカー**で配置されるため、オーバーフローが右側にのみ発生し、テキストが視覚上右に寄って見える(実測: `ex09-many-checks` で +16.27px / `docs/text-right-shift-investigation-2026-05-17.md`)。
+
+本後処理は内側 cell を **中央アンカー(center-anchored)** にするため、外側に `display:flex` ラッパを 1 段挿入する。これによりオーバーフローが左右均等に分散し、ノードの視覚的重心が rect 中心と一致する。
+
+#### 7.4.2 DOM 変換(Before / After)
+
+修正前(F-1 適用後):
+```html
+<foreignObject style="overflow:visible" width="141.55" height="48">
+  <div xmlns="http://www.w3.org/1999/xhtml"
+       style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;">
+    <span class="nodeLabel"><p>✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓</p></span>
+  </div>
+</foreignObject>
+```
+
+修正後(F-2 適用):
+```html
+<foreignObject style="overflow:visible" width="141.55" height="48">
+  <div xmlns="http://www.w3.org/1999/xhtml"
+       style="display:flex;justify-content:center;align-items:center;width:100%;height:100%">
+    <div xmlns="http://www.w3.org/1999/xhtml"
+         style="display: table-cell; white-space: nowrap; line-height: 1.5; max-width: 200px; text-align: center;">
+      <span class="nodeLabel"><p>✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓</p></span>
+    </div>
+  </div>
+</foreignObject>
+```
+
+#### 7.4.3 実装
+
+`src/renderer/postProcess.ts` に `forceForeignObjectInnerCentered(svg: string): string` 関数を追加し、`applyPostProcess()` で `forceForeignObjectOverflowVisible()` (F-1) の直後に呼び出す。
+
+マッチング正規表現: tempered greedy token `(?:(?!<div\b)[\s\S])*?` を使い、内部にネスト `<div>` が存在する場合は no-op(§3.5.1 fallback (a) 採用)。冪等性は適用後の外側 flex div が `table-cell` でなく、かつ内側 `table-cell` div が foreignObject 直下でないためマッチせず二重ラップしない構造で保証。
+
+#### 7.4.4 検証
+
+- PROP-19 (fast-check): P-1 冪等性 / P-2 table-cell 非存在時不変 / P-3 foreignObject 数保存 / P-4 ネスト div no-op — `test/property/prop-19_*.property.test.ts`
+- 単体テスト 14 件: `test/unit/postProcess.foreignObjectInnerCenter.test.ts`
+- 結合テスト: 12 ケース × 2 ノード = 24 計測で全 `|shift_px|=0`(修正前最大 +16.27px → 修正後 0)
+- PNG 不介入: `applyPostProcess({format:'png',...})` でバッファ完全一致(AC-4、unit test #13)
+- PNG byte 一致(AC-P-1-Ref): prod(3100) と test(3101) で 12 ケース全て sha256 一致
+
+**Phase 4.6+ 実装完了ステータス(2026-05-17)**:
+- 実装: `src/renderer/postProcess.ts` に `forceForeignObjectInnerCentered()` 追加済 + `applyPostProcess()` で F-1 直後に自動呼出
+- ユニットテスト: `test/unit/postProcess.foreignObjectInnerCenter.test.ts` (14 tests, 全 green)
+- プロパティテスト: `test/property/prop-19_force_foreignobject_inner_center.property.test.ts` (4 tests: P-1〜P-4, 200 runs, 全 green)
+- 結合計測: `docs/text-right-shift-investigation-2026-05-17/extreme-after/measurements.json` (24 件全 shift_px=0)
+- 視覚比較: `docs/text-right-shift-investigation-2026-05-17/extreme-overview-after.png`
+- 回帰確認: `docs/text-right-shift-investigation-2026-05-17/regression-after/` (7 パターン、破綻なし)
+
 ## 8. デプロイ戦略(test Docker → prod Docker 差し替え)
 
 NFR-03 に基づき、現行本番 Docker を稼働させたままテスト用 Docker で検証する blue/green 風の差し替え手順を採用する。

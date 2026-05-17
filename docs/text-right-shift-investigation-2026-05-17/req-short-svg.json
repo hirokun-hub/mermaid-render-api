@@ -1,0 +1,4 @@
+{
+  "code": "flowchart LR\n  X[\"整理する\"] --> Y[\"完了\"]",
+  "format": "svg"
+}

@@ -1,0 +1,14 @@
+{
+  "ex01-emoji-pile": "flowchart LR\n  A[\"✅✅✅ 集める ✅✅✅\"] --> B[\"完了\"]",
+  "ex02-mixed-emoji": "flowchart LR\n  A[\"📤 CSV出力 → ✓ 完了 🎉\"] --> B[\"次\"]",
+  "ex03-tick-mark": "flowchart LR\n  A[\"集める ✓✓✓✓✓\"] --> B[\"完了\"]",
+  "ex04-brackets": "flowchart LR\n  A[\"【重要】CSV連携 ✅\"] --> B[\"END\"]",
+  "ex05-arrow-symbols": "flowchart LR\n  A[\"→ ★ ◯ ⚠ ☆ ←\"] --> B[\"了\"]",
+  "ex06-fullwidth-w": "flowchart LR\n  A[\"ＷＷＷＷＷＷＷＷ\"] --> B[\"了\"]",
+  "ex07-narrow-i": "flowchart LR\n  A[\"iiiiiiiiii\"] --> B[\"WWWWWWWWWW\"]",
+  "ex08-mixed-w-cjk": "flowchart LR\n  A[\"集める ✓ (PrimeDrive 自動)\"] --> B[\"完了 ✅\"]",
+  "ex09-many-checks": "flowchart LR\n  A[\"✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓ ✓\"] --> B[\"了\"]",
+  "ex10-long-emoji": "flowchart LR\n  A[\"🚀 デプロイ完了 🎉🎉🎉\"] --> B[\"✅\"]",
+  "ex11-mixed-jpcn": "flowchart LR\n  A[\"日本語と中文混合 漢字漢字\"] --> B[\"了\"]",
+  "ex12-square-bracket": "flowchart LR\n  A[\"[INFO] 集める処理 ✓\"] --> B[\"[OK]\"]"
+}

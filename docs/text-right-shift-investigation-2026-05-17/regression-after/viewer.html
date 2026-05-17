@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>Regression Check (F-2 after)</title>
+<style>
+body { margin:0; padding:16px 24px; font-family:sans-serif; background:#fafafa; color:#222; }
+h2 { font-size:14px; margin:4px 0 12px; }
+table { border-collapse:collapse; }
+td,th { vertical-align:top; padding:6px 10px; border-bottom:1px solid #eee; font-size:12px; }
+td.label { font-family:monospace; color:#555; white-space:nowrap; }
+td.stage { background:#fff; border:1px solid #ddd; padding:6px; }
+object { display:block; }
+</style>
+</head><body>
+<h2>Regression Check: F-2 (forceForeignObjectInnerCentered) 適用後 — 7パターン目視確認</h2>
+<table>
+<tr><th>case</th><th>SVG</th></tr>
+<script>
+const cases = [
+  "flowchart-simple","flowchart-multiline","state-simple","state-composite",
+  "flowchart-edge-label","flowchart-subgraph","flowchart-short"
+];
+document.write(cases.map(c =>
+  `<tr><td class="label">${c}</td><td class="stage"><object data="${c}.svg" type="image/svg+xml"></object></td></tr>`
+).join(''));
+</script>
+</table>
+</body></html>

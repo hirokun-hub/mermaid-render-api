@@ -1,0 +1,4 @@
+{
+  "code": "flowchart LR\n  A[\"集める ✓<br>(PrimeDrive 自動)\"] --> B[\"整理する<br>(手動 + ✓)\"]",
+  "format": "png"
+}

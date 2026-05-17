@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0">
+<object id="svg" data="http://127.0.0.1:8765/case-clip.svg" type="image/svg+xml"></object>
+<script>
+  document.getElementById('svg').addEventListener('load', () => {
+    const svgDoc = document.getElementById('svg').contentDocument;
+    const out = [];
+    svgDoc.querySelectorAll('.node').forEach(n => {
+      const rect = n.querySelector('rect.basic.label-container');
+      const fo = n.querySelector('foreignObject');
+      const span = fo ? fo.querySelector('.nodeLabel') : null;
+      const innerDiv = fo ? fo.querySelector('div') : null;
+      const id = n.getAttribute('id');
+      if (rect && fo && span) {
+        const rb = rect.getBoundingClientRect();
+        const sb = span.getBoundingClientRect();
+        const fob = fo.getBoundingClientRect();
+        const db = innerDiv.getBoundingClientRect();
+        out.push({
+          id,
+          rectLeft: rb.left.toFixed(2), rectRight: rb.right.toFixed(2), rectCenter: ((rb.left+rb.right)/2).toFixed(2), rectWidth: rb.width.toFixed(2),
+          foLeft: fob.left.toFixed(2), foRight: fob.right.toFixed(2), foCenter: ((fob.left+fob.right)/2).toFixed(2), foWidth: fob.width.toFixed(2),
+          innerDivLeft: db.left.toFixed(2), innerDivRight: db.right.toFixed(2), innerDivWidth: db.width.toFixed(2),
+          spanLeft: sb.left.toFixed(2), spanRight: sb.right.toFixed(2), spanCenter: ((sb.left+sb.right)/2).toFixed(2), spanWidth: sb.width.toFixed(2),
+          spanCenter_minus_rectCenter: ((sb.left+sb.right)/2 - (rb.left+rb.right)/2).toFixed(2)
+        });
+      }
+    });
+    document.title = 'M:' + JSON.stringify(out);
+    document.body.innerText = JSON.stringify(out, null, 2);
+  });
+</script>
+</body></html>

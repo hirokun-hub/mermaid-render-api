@@ -739,6 +739,53 @@
 
 ---
 
+## Phase 7: F-2 foreignObject 内側センタリング強制 (REQ-U-10)
+
+**前提**: Phase 4.6(F-1: REQ-U-09)完了済。`investigate/state-diagram-padding` ブランチ上で実施。
+
+### Phase 7 タスク
+
+- [x] **実装**: `src/renderer/postProcess.ts` に `forceForeignObjectInnerCentered()` 追加 + `applyPostProcess()` で F-1 直後に呼び出し(REQ-U-10、design.md §7.4)
+- [x] **単体テスト**: `test/unit/postProcess.foreignObjectInnerCenter.test.ts` 14 件 (AC-3, AC-4)
+- [x] **プロパティテスト**: `test/property/prop-19_force_foreignobject_inner_center.property.test.ts` P-1〜P-4 (PROP-19)
+- [x] **Docker ビルド**: `docker compose --profile test build mermaid-render-api-test` で修正コードの image をビルド
+- [x] **test サービス起動**: port 3101、`/healthz` 200 確認
+- [x] **12 ケース再生成**: `extreme-after/` に SVG/PNG を port 3101 から生成
+- [x] **shift_px 計測**: `extreme-after/measurements.json` — 全 24 行で `|shift_px|=0` (AC-1 達成)
+- [x] **視覚比較**: `extreme-overview-after.png` 撮影 (AC-6)
+- [x] **回帰チェック**: `regression-after/` に 7 パターン SVG 生成、破綻なし (AC-5)
+- [x] **PNG 不介入(AC-4)**: unit test #13 (format=png バイト一致) pass 確認
+- [x] **PNG byte 一致(AC-P-1-Ref)**: prod(3100) / test(3101) で 12 ケース全 sha256 一致
+- [x] **スペック追記**: requirements.md / design.md / tasks.md 更新
+- [x] **検証報告書**: `docs/foreignobject-inner-centering-verification-2026-05-17.md` 作成
+
+### Phase 7 受入基準
+
+- [x] 全テスト 218 件(既存 204 + F-2 新規 14 + PROP-19 4) green (AC-2, AC-3)
+- [x] 全 24 計測で `|shift_px| < 2.0` (実測値: max=0) (AC-1)
+- [x] PNG バッファ完全一致 (AC-4)
+- [x] 視覚比較スクリーンショットで右寄り消滅を目視確認 (AC-6)
+- [x] 回帰チェックリスト全 PASS (AC-5)
+- [x] PNG byte 比較 12/12 一致 (AC-P-1-Ref)
+
+### Phase 7 対象ファイル
+
+| 種別 | パス |
+|---|---|
+| 拡張 | `src/renderer/postProcess.ts` |
+| 新規 | `test/unit/postProcess.foreignObjectInnerCenter.test.ts` |
+| 新規 | `test/property/prop-19_force_foreignobject_inner_center.property.test.ts` |
+| 追記 | `.kiro/specs/beautiful-svg-rendering/requirements.md` |
+| 追記 | `.kiro/specs/beautiful-svg-rendering/design.md` |
+| 追記 | `.kiro/specs/beautiful-svg-rendering/tasks.md` |
+| 修正 | `docs/svg-foreignobject-overflow-fix-verification-2026-05-16.md` |
+| 新規 | `docs/foreignobject-inner-centering-verification-2026-05-17.md` |
+| 新規 | `docs/text-right-shift-investigation-2026-05-17/extreme-after/` |
+| 新規 | `docs/text-right-shift-investigation-2026-05-17/extreme-overview-after.png` |
+| 新規 | `docs/text-right-shift-investigation-2026-05-17/regression-after/` |
+
+---
+
 ## 10. Out of Scope(将来別票)
 
 - 複数 SVG 同一ページ embed 用の ID 全 rewrite(要件定義書 §8 参照)

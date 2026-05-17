@@ -1,0 +1,1 @@
+{ "code": "stateDiagram-v2\n  [*] --> 集める ✓<br>(PrimeDrive 自動)\n  集める ✓<br>(PrimeDrive 自動) --> 整理する<br>(手動 + ✓)\n  整理する<br>(手動 + ✓) --> [*]\n", "format": "svg" }

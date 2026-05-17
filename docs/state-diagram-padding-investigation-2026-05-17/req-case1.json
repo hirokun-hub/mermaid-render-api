@@ -1,0 +1,1 @@
+{ "code": "stateDiagram-v2\n  [*] --> 集める\n  集める --> 整理する\n  整理する --> [*]\n", "format": "svg" }

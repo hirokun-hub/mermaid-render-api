@@ -104,7 +104,7 @@ HTML ビュアを作成し、`<img src="./original/pN.svg">` と `<img src="./pa
 
 ### バッファ vs はみ出し量(クリップしないかの理論判定)
 
-`<img>` モードで `overflow:visible` が効くと、text 描画は foreignObject 境界を超えて symmetrically(左右均等)に広がる。rect 内に収まる条件:
+`<img>` モードで `overflow:visible` が効くと、text 描画は foreignObject 境界を超えてはみ出す。ただし F-1 単体では内側 cell の配置が **左端アンカー**のため、オーバーフローは右側にのみ発生し、テキストが視覚上右に寄って見える(実測最大 +16.27px、`docs/text-right-shift-investigation-2026-05-17.md`)。**F-2(`forceForeignObjectInnerCentered`)適用後は内側 cell が flex で中央配置されるため、オーバーフローが左右均等に分散し shift_px=0 が実測で確認されている**(`docs/foreignobject-inner-centering-verification-2026-05-17.md`)。F-1 単体での rect 内収まり条件(参考):
 
 ```
 片側はみ出し量(= overflow / 2) ≤ 片側バッファ(= 2 × flowchart.padding)
