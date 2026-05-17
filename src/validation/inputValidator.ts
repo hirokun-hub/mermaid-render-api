@@ -1,9 +1,12 @@
 import {
   DEFAULT_FORMAT,
+  DEFAULT_PNG_SCALE,
   DEFAULT_TIMEOUT_MS,
   MAX_CODE_SIZE,
+  MAX_PNG_SCALE,
   MAX_THEME_CSS_LENGTH,
   MAX_TIMEOUT_MS,
+  MIN_PNG_SCALE,
   MIN_TIMEOUT_MS,
   SUPPORTED_FORMATS,
   THEME_CSS_FORBIDDEN_PATTERNS,
@@ -26,6 +29,7 @@ export interface RenderRequestInput {
   timeout_ms?: unknown
   mermaid_config?: unknown
   post_process?: unknown
+  scale?: unknown
 }
 
 export interface ValidateResultError {
@@ -43,6 +47,7 @@ export interface ValidationResult {
   normalizedFormat: SupportedFormat
   requestedFormat: string
   timeoutMs: number
+  scale: number
   warnings: Warning[]
   mermaidConfig?: Partial<MermaidConfig>
   postProcess: NormalizedPostProcess
@@ -132,9 +137,16 @@ export function validateRenderRequest(input: RenderRequestInput): ValidationResu
   const timeoutResult = validateTimeout(input.timeout_ms, base)
   if (!timeoutResult.valid) return timeoutResult
 
+  const scaleResult = validateScale(input.scale, timeoutResult, warnings)
+  if (!scaleResult.valid) return scaleResult
+
+  if (input.scale !== undefined && scaleResult.normalizedFormat === 'svg') {
+    warnings.add(WarningCode.ScaleIgnoredForSvg, {})
+  }
+
   const mermaidConfigResult = validateMermaidConfig(
     input.mermaid_config,
-    timeoutResult,
+    scaleResult,
     warnings
   )
   if (!mermaidConfigResult.valid) return mermaidConfigResult
@@ -170,6 +182,7 @@ function createBaseResult(
     normalizedFormat,
     requestedFormat,
     timeoutMs: DEFAULT_TIMEOUT_MS,
+    scale: DEFAULT_PNG_SCALE,
     warnings: warnings.drain(),
     postProcess: { ...DEFAULT_POST_PROCESS }
   }
@@ -247,6 +260,32 @@ function validateTimeout(
   }
 
   return { ...base, timeoutMs: timeoutRaw }
+}
+
+function validateScale(
+  scaleRaw: unknown,
+  base: ValidationResult,
+  warnings: WarningCollector
+): ValidationResult {
+  if (scaleRaw === undefined) {
+    return { ...base, scale: DEFAULT_PNG_SCALE }
+  }
+
+  if (typeof scaleRaw !== 'number' || !Number.isInteger(scaleRaw)) {
+    return invalid(base, 'scale must be an integer', 'scale', 'type_mismatch', warnings)
+  }
+
+  if (scaleRaw < MIN_PNG_SCALE || scaleRaw > MAX_PNG_SCALE) {
+    return invalid(
+      base,
+      `scale must be between ${MIN_PNG_SCALE} and ${MAX_PNG_SCALE}`,
+      'scale',
+      'out_of_range',
+      warnings
+    )
+  }
+
+  return { ...base, scale: scaleRaw }
 }
 
 function validateMermaidConfig(

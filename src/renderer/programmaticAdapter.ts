@@ -1,5 +1,6 @@
 import { renderMermaid } from '@mermaid-js/mermaid-cli'
 
+import { DEFAULT_PNG_SCALE } from '../config.js'
 import { extractMermaidError } from '../utils/extractMermaidError.js'
 import { BrowserPool, BrowserPoolError } from './browserPool.js'
 import type {
@@ -34,11 +35,15 @@ export class ProgrammaticAdapter implements MermaidRendererAdapter {
       let shouldRelease = true
 
       try {
-        const renderPromise = renderMermaid(context, input.code, input.format, {
-          backgroundColor: 'transparent',
+        const renderOptions = {
+          backgroundColor: 'transparent' as const,
           mermaidConfig: input.mermaidConfig as never,
-          svgId: input.svgId ?? buildSvgId(input.requestId, input.postProcess)
-        })
+          svgId: input.svgId ?? buildSvgId(input.requestId, input.postProcess),
+          ...(input.format === 'png'
+            ? { viewport: { width: 800, height: 600, deviceScaleFactor: input.scale ?? DEFAULT_PNG_SCALE } }
+            : {})
+        }
+        const renderPromise = renderMermaid(context, input.code, input.format, renderOptions)
 
         const rendered = await withTimeout(renderPromise, input.timeoutMs)
         const data = normalizeRenderedData(rendered.data)

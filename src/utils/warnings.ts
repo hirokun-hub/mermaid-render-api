@@ -3,7 +3,8 @@ export enum WarningCode {
   LockedSettingOverrideIgnored = 'locked_setting_override_ignored',
   PrototypePollutionAttempt = 'prototype_pollution_attempt',
   SvgOnlyOptionInPng = 'svg_only_option_in_png',
-  ThemeCssRejected = 'theme_css_rejected'
+  ThemeCssRejected = 'theme_css_rejected',
+  ScaleIgnoredForSvg = 'scale_ignored_for_svg'
 }
 
 export interface Warning {

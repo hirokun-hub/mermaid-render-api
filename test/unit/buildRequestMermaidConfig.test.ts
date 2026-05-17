@@ -18,7 +18,7 @@ describe('buildRequestMermaidConfig (PROP-3, PROP-8)', () => {
     expect(result).toMatchObject(SERVER_LOCKED_SETTINGS)
     expect(result.htmlLabels).toBe(true)
     expect(result.suppressErrorRendering).toBe(true)
-    expect(result.flowchart?.useMaxWidth).toBe(false)
+    expect(result.flowchart?.useMaxWidth).toBe(true)
     expect(result.flowchart?.defaultRenderer).toBe('dagre-wrapper')
   })
 

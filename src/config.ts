@@ -42,9 +42,9 @@ export type SupportedFormat = (typeof SUPPORTED_FORMATS)[number]
 export const PUPPETEER_CONFIG_PATH =
   process.env.PUPPETEER_CONFIG_PATH ??
   join(process.cwd(), 'puppeteer.config.json')
-export const PNG_RENDER_SCALE = toPositiveInt(process.env.PNG_RENDER_SCALE, 2)
-/** CLI fallback compatibility only; SVG root padding is disabled by default. */
-export const MERMAID_PADDING = toPositiveInt(process.env.MERMAID_PADDING, 0)
+export const DEFAULT_PNG_SCALE = 3 as const
+export const MIN_PNG_SCALE = 1 as const
+export const MAX_PNG_SCALE = 4 as const
 export const MERMAID_CONFIG_PATH =
   process.env.MERMAID_CONFIG_PATH ??
   join(process.cwd(), 'mermaid.config.json')
@@ -141,10 +141,10 @@ export const BEAUTIFUL_DEFAULTS: Readonly<MermaidConfig> = {
   securityLevel: 'strict',
   suppressErrorRendering: true,
   flowchart: {
-    useMaxWidth: false,
-    diagramPadding: 0,
-    nodeSpacing: 30,
-    rankSpacing: 40,
+    useMaxWidth: true,
+    diagramPadding: 8,
+    nodeSpacing: 50,
+    rankSpacing: 50,
     curve: 'basis',
     wrappingWidth: 200,
     defaultRenderer: 'dagre-wrapper'

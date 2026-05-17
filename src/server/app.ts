@@ -59,7 +59,8 @@ app.post('/render', async (req: Request, res: Response) => {
     format: req.body.format,
     timeout_ms: req.body.timeout_ms,
     mermaid_config: req.body.mermaid_config,
-    post_process: req.body.post_process
+    post_process: req.body.post_process,
+    scale: req.body.scale
   })
 
   const requestedFormat = validation.requestedFormat
@@ -173,6 +174,7 @@ app.post('/render', async (req: Request, res: Response) => {
       code: req.body.code,
       format: normalizedFormat,
       timeoutMs: validation.timeoutMs,
+      scale: normalizedFormat === 'png' ? validation.scale : undefined,
       mermaidConfig,
       postProcess: validation.postProcess
     })

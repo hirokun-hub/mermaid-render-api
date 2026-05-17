@@ -51,7 +51,8 @@ Mermaidコードを画像に変換します。
 {
   "code": "graph TD\nA-->B",
   "format": "svg",
-  "timeout_ms": 8000
+  "timeout_ms": 8000,
+  "scale": 3
 }
 ```
 
@@ -65,6 +66,17 @@ Mermaidコードを画像に変換します。
 - `timeout_ms` (number, 任意)
   - レンダリングタイムアウト（ミリ秒）
   - 未指定時はサーバー設定値
+- `scale` (integer, 任意)
+  - PNG の解像度倍率 (deviceScaleFactor)。`1`〜`4` の整数
+  - 未指定時はサーバー既定値 `3`
+  - `format=svg` と同時送信した場合は無視される（SVG はベクター形式のため解像度の概念がない）。レスポンスは `200 OK` で `scale` 未指定時と同一の SVG が返る
+  - 範囲外 (`0`, `5+`, 非整数, 文字列, null) → `400 invalid_request`、`error_field: "scale"`
+
+  | 入力 | 動作 |
+  |---|---|
+  | `{"format":"png","scale":1}` | 軽量モード（約 1/9 のファイルサイズ） |
+  | `{"format":"png","scale":3}` | 標準（既定値と同等） |
+  | `{"format":"png","scale":4}` | 高 DPI 用 |
 
 ### 成功レスポンス
 
@@ -143,6 +155,15 @@ Mermaidコードを画像に変換します。
 curl -i -X POST http://localhost:3000/render \
   -H "Content-Type: application/json" \
   -d '{"code":"graph TD\nA-->B","format":"svg"}'
+```
+
+### PNG生成（高解像度）
+
+```bash
+curl -X POST http://localhost:3000/render \
+  -H "Content-Type: application/json" \
+  -d '{"code":"flowchart LR\n A-->B","format":"png","scale":2}' \
+  > output.png
 ```
 
 ### ヘルスチェック
