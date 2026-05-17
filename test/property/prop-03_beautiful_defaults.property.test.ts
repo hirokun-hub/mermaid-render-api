@@ -16,7 +16,7 @@ describe('PROP-3: BEAUTIFUL_DEFAULTS applied when mermaid_config is omitted (Val
     const result = buildRequestMermaidConfig()
     expect(result.htmlLabels).toBe(true)
     expect(result.suppressErrorRendering).toBe(true)
-    expect(result.flowchart?.useMaxWidth).toBe(false)
+    expect(result.flowchart?.useMaxWidth).toBe(true)
     expect(result.securityLevel).toBe('strict')
   })
 

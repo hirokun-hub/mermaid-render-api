@@ -46,6 +46,56 @@ describe('ProgrammaticAdapter', () => {
     expect(pool.release).toHaveBeenCalledWith(pool.context)
   })
 
+  test('passes viewport.deviceScaleFactor when format=png with scale (REQ-U-11)', async () => {
+    renderMermaidMock.mockResolvedValue({ data: new Uint8Array(0) })
+    const pool = createFakePool()
+    const adapter = new ProgrammaticAdapter(pool)
+
+    await adapter.ready()
+    await adapter.render(createInput({ format: 'png', scale: 2 }))
+
+    expect(renderMermaidMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'png',
+      expect.objectContaining({
+        viewport: expect.objectContaining({ deviceScaleFactor: 2 })
+      })
+    )
+  })
+
+  test('uses DEFAULT_PNG_SCALE when format=png and scale is undefined (REQ-U-11)', async () => {
+    renderMermaidMock.mockResolvedValue({ data: new Uint8Array(0) })
+    const pool = createFakePool()
+    const adapter = new ProgrammaticAdapter(pool)
+
+    await adapter.ready()
+    await adapter.render(createInput({ format: 'png' }))
+
+    expect(renderMermaidMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'png',
+      expect.objectContaining({
+        viewport: expect.objectContaining({ deviceScaleFactor: 3 })
+      })
+    )
+  })
+
+  test('does not pass viewport when format=svg (REQ-U-11 INV-4)', async () => {
+    renderMermaidMock.mockResolvedValue({
+      data: new Uint8Array(Buffer.from('<svg id="mermaid-req-1"></svg>'))
+    })
+    const pool = createFakePool()
+    const adapter = new ProgrammaticAdapter(pool)
+
+    await adapter.ready()
+    await adapter.render(createInput({ format: 'svg' }))
+
+    const callArgs = renderMermaidMock.mock.calls[0][3] as Record<string, unknown>
+    expect(callArgs).not.toHaveProperty('viewport')
+  })
+
   test('returns timeout and discards context when render exceeds timeoutMs', async () => {
     renderMermaidMock.mockReturnValue(new Promise(() => undefined))
     const pool = createFakePool()

@@ -12,6 +12,7 @@ export interface RenderInput {
   code: string
   format: SupportedFormat
   timeoutMs: number
+  scale?: number
   mermaidConfig: MermaidConfig
   postProcess?: NormalizedPostProcess
   svgId?: string

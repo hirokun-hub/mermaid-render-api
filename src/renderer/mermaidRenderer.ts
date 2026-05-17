@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import {
+  DEFAULT_PNG_SCALE,
   MERMAID_CONFIG_PATH,
-  PNG_RENDER_SCALE,
   PUPPETEER_CONFIG_PATH,
   TEMP_DIR
 } from '../config.js'
@@ -35,6 +35,7 @@ export class MermaidRenderer {
     options: {
       mermaidConfigPath?: string
       puppeteerConfigPath?: string
+      scale?: number
     } = {}
   ): Promise<RenderResult> {
     const inputPath = join(TEMP_DIR, `${requestId}.mmd`)
@@ -60,7 +61,7 @@ export class MermaidRenderer {
       ]
 
       if (format === 'png') {
-        args.push('--scale', String(PNG_RENDER_SCALE))
+        args.push('--scale', String(options.scale ?? DEFAULT_PNG_SCALE))
       }
 
       await execFileAsync('npx', args, { timeout: timeoutMs, env: process.env })

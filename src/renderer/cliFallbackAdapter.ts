@@ -30,7 +30,7 @@ export class CliFallbackAdapter implements MermaidRendererAdapter {
         input.code,
         input.format,
         input.timeoutMs,
-        configPaths
+        { ...configPaths, scale: input.scale }
       )
 
       if (!result.success) {
