@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;font-family:sans-serif;font-size:12px">
+<div id="hosts"></div>
+<pre id="out">loading...</pre>
+<script>
+const cases = ["ex01-emoji-pile","ex02-mixed-emoji","ex03-tick-mark","ex04-brackets","ex05-arrow-symbols","ex06-fullwidth-w","ex07-narrow-i","ex08-mixed-w-cjk","ex09-many-checks","ex10-long-emoji","ex11-mixed-jpcn","ex12-square-bracket"];
+const hosts = document.getElementById('hosts');
+const out = document.getElementById('out');
+
+const objects = cases.map(c => {
+  const o = document.createElement('object');
+  o.data = c + '.svg';
+  o.type = 'image/svg+xml';
+  o.dataset.name = c;
+  hosts.appendChild(o);
+  hosts.appendChild(document.createTextNode(' '));
+  return o;
+});
+
+let pending = objects.length;
+const results = [];
+
+objects.forEach(o => {
+  o.addEventListener('load', () => {
+    const doc = o.contentDocument;
+    const name = o.dataset.name;
+    doc.querySelectorAll('.node').forEach(n => {
+      const rect = n.querySelector('rect.basic.label-container');
+      const fo = n.querySelector('foreignObject');
+      const span = fo && fo.querySelector('.nodeLabel');
+      const p = span && span.querySelector('p');
+      const innerDiv = fo && fo.querySelector('div');
+      if (!rect || !fo || !span) return;
+      const rb = rect.getBoundingClientRect();
+      const fob = fo.getBoundingClientRect();
+      const db = innerDiv.getBoundingClientRect();
+      const sb = span.getBoundingClientRect();
+      const pb = p ? p.getBoundingClientRect() : null;
+      const id = (n.getAttribute('id') || '').split('-').slice(-2).join('-');
+      const text = (p ? p.textContent : span.textContent).trim();
+      results.push({
+        case: name,
+        node: id,
+        text: text,
+        rect_w: +rb.width.toFixed(2),
+        rect_center: +((rb.left+rb.right)/2).toFixed(2),
+        fO_w: +fob.width.toFixed(2),
+        fO_center: +((fob.left+fob.right)/2).toFixed(2),
+        innerDiv_w: +db.width.toFixed(2),
+        innerDiv_left: +db.left.toFixed(2),
+        innerDiv_right: +db.right.toFixed(2),
+        innerDiv_center: +((db.left+db.right)/2).toFixed(2),
+        p_w: pb ? +pb.width.toFixed(2) : null,
+        shift_px: +(((db.left+db.right)/2) - ((rb.left+rb.right)/2)).toFixed(2),
+        overflow_right_px: +(db.right - fob.right).toFixed(2),
+        overflow_left_px: +(fob.left - db.left).toFixed(2)
+      });
+    });
+    pending--;
+    if (pending === 0) {
+      // sort by absolute shift
+      results.sort((a,b) => Math.abs(b.shift_px) - Math.abs(a.shift_px));
+      out.textContent = JSON.stringify(results, null, 2);
+      document.title = 'DONE:' + results.length;
+    }
+  });
+});
+</script>
+</body></html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>extreme right-shift (1x)</title>
+<style>
+  body { margin:0; padding:16px 24px; font-family:sans-serif; background:#fafafa; color:#222; }
+  h2 { font-size:14px; margin: 4px 0 12px; }
+  table { border-collapse: collapse; }
+  td, th { vertical-align: top; padding: 6px 10px; border-bottom: 1px solid #eee; font-size:12px; text-align:left; }
+  td.label { font-family: monospace; color: #555; white-space: nowrap; }
+  td.shift { font-family: monospace; text-align: right; color: #c33; font-weight: 600; }
+  td.stage { background:#fff; border:1px solid #ddd; padding: 6px; }
+  .frame { position: relative; display: inline-block; line-height: 0; }
+  .frame svg, .frame img { display:block; }
+  .center-marker {
+    position: absolute; top: 0; bottom: 0;
+    border-left: 1px dashed red;
+    pointer-events: none;
+  }
+  .legend { font-size:11px; color:#666; margin-bottom: 8px; }
+</style>
+</head><body>
+
+<h2>Extreme right-shift cases (1:1 等倍, 赤破線 = rect 中心)</h2>
+<div class="legend">テキストの重心が赤線から左右に偏っていれば中心からズレている (= 中央揃いになっていない)。SVG は inline-embed (object) で読み込み、JS が rect 中心を実測して dashed line を打っている。PNG は隣に並べた img。</div>
+
+<table id="t">
+  <tr><th>case</th><th>SVG (object, inline)</th><th>PNG (img)</th><th>shift_px</th></tr>
+</table>
+
+<script>
+const cases = [
+  { name: "ex09-many-checks",    text: '"✓ × 10"',                shift: "+16.27" },
+  { name: "ex01-emoji-pile",     text: '"✅✅✅ 集める ✅✅✅"',   shift: "+13.12" },
+  { name: "ex02-mixed-emoji",    text: '"📤 CSV出力 → ✓ 完了 🎉"', shift:  "+9.53" },
+  { name: "ex10-long-emoji",     text: '"🚀 デプロイ完了 🎉🎉🎉"', shift:  "+9.53" },
+  { name: "ex03-tick-mark",      text: '"集める ✓✓✓✓✓"',         shift:  "+6.99" },
+  { name: "ex04-brackets",       text: '"【重要】CSV連携 ✅"',    shift:  "+4.59" },
+  { name: "ex07-narrow-i",       text: 'A="iiiiiiiiii"<br>B="WWWWWWWWWW"', shift: "A:-4.23 / B:+5.27" }
+];
+
+const tbody = document.getElementById('t');
+cases.forEach(c => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="label">${c.name}<br>${c.text}</td>
+    <td class="stage"><div class="frame"><object data="extreme-after/${c.name}.svg" type="image/svg+xml" data-name="${c.name}"></object></div></td>
+    <td class="stage"><div class="frame"><img src="extreme-after/${c.name}.png" data-name="${c.name}-png"></div></td>
+    <td class="shift">${c.shift}</td>`;
+  tbody.appendChild(tr);
+});
+
+// after each <object> loads, read rect positions from its SVG DOM, then draw markers
+// in the .frame coord space for BOTH the svg side and the png side.
+document.querySelectorAll('object').forEach(obj => {
+  obj.addEventListener('load', () => {
+    const svgDoc = obj.contentDocument;
+    const objRect = obj.getBoundingClientRect();
+    const svgFrame = obj.parentElement;
+    const tr = svgFrame.closest('tr');
+    const pngFrame = tr.querySelector('td.stage:nth-child(3) .frame');
+    const pngImg = pngFrame.querySelector('img');
+    const pngRect = pngImg.getBoundingClientRect();
+
+    svgDoc.querySelectorAll('.node').forEach(n => {
+      const rect = n.querySelector('rect.basic.label-container');
+      if (!rect) return;
+      const rb = rect.getBoundingClientRect();
+      const centerInDoc = (rb.left + rb.right) / 2;       // page coord inside the SVG document
+      // Map to position within the object element
+      const xInObject = centerInDoc; // since svgDoc origin == object's content origin (0,0)
+      // Place marker in svgFrame using svgFrame coord = obj's offset within frame is 0
+      const svgMarker = document.createElement('div');
+      svgMarker.className = 'center-marker';
+      svgMarker.style.left = xInObject + 'px';
+      svgFrame.appendChild(svgMarker);
+
+      // Same position on PNG (same intrinsic rendering, same coord)
+      const pngMarker = document.createElement('div');
+      pngMarker.className = 'center-marker';
+      pngMarker.style.left = xInObject + 'px';
+      pngFrame.appendChild(pngMarker);
+    });
+  });
+});
+</script>
+
+</body></html>
