@@ -55,13 +55,21 @@ Mermaid `dagre-wrapper` + `htmlLabels` で出力される SVG のラベル `<for
 | AC-5 | 後述の **回帰チェックリスト** (§4.3.5) で挙げた SVG パターン (flowchart / state diagram / edge label / cluster / 0×0 fO) で破綻なし | 副作用がない |
 | AC-6 | 視覚回帰スクリーンショット (§4.3.4 の手順、Phase 5 で撮影) で **修正前 (`extreme-overview.png`) → 修正後 (`extreme-overview-after.png`)** で右寄りが消えていることを目視確認 | 人間判定 |
 
-### 2.2 受入条件 (PNG 出力 / 実 API バイト一致)
+### 2.2 PNG 出力の担保
 
-PNG は元々 Puppeteer 内で完結するため shift_px は **既にほぼ 0** (測定済みで PNG 側のズレ無し)。AC-4 が単体テスト境界での担保なのに対し、本項は **実 API バイト一致** での担保。
+PNG は元々 Puppeteer 内で完結するため shift_px は **既にほぼ 0**。F-2 が PNG パスに影響しないことの **正式担保は AC-4 (単体テスト)** に寄せる。実 API での `sha256sum` 比較は image build / env / Chromium 内部差まで拾うため、**F-2 だけを切り分けた担保にならない** (= 失敗時に F-2 起因とは断定できない)。
 
-| ID | 条件 |
-|---|---|
-| AC-P-1 (結合テスト) | 同一入力 12 ケースを **本番 (port 3100) と修正後 test (port 3101)** にそれぞれ投げた PNG レスポンスを `sha256sum` した結果が 12/12 で一致 | F-2 が実 API レベルでも PNG を変更していないことを担保 |
+| ID | 種別 | 条件 |
+|---|---|---|
+| **AC-4** (正式) | 単体テスト | `applyPostProcess({format:'png',...})` で F-2 の DOM ラッパが出力に含まれない & 入力バッファと完全バイト一致 (§4.1 #13) |
+| AC-P-1-Ref (参考検証、必須ではない) | 結合テスト | 同一入力 12 ケースを **本番 (port 3100) と修正後 test (port 3101)** にそれぞれ投げた PNG レスポンスの `sha256sum` を比較し、差が出たら **F-2 起因と限らないため** 個別に切り分け調査 (image digest / `.env` / Chromium 起動オプション / フォント可用性差) を報告書に記録する |
+
+**AC-P-1-Ref が一致しなかった場合の対処**: 必ずしも F-2 のバグではない。次の差分を確認:
+1. `docker compose images` の image digest 比較 (`mermaid-render-api` vs `mermaid-render-api-test`)
+2. `.env` vs `.env.test` の差分 (本リポジトリは差分あり: `RENDERER_MODE` / `PNG_RENDER_SCALE` / `BROWSER_POOL_SIZE` 等が test 側で明示設定)
+3. Chromium バージョン / フォントキャッシュ状態
+
+切り分けた結果 F-2 起因と判明した場合のみ、本実装の見直し対象とする。**F-2 の正式合格は AC-4 で担保済**。
 
 ---
 
@@ -156,18 +164,21 @@ export function forceForeignObjectInnerCentered(svg: string): string {
 | inner div 属性順: `xmlns` が `style` より **前** | 全 fO で成立 | 順序逆だとマッチせず no-op (現状維持) |
 | 属性内に改行なし | 全 fO で成立 | 改行入りだとマッチせず no-op (現状維持) |
 
-**ネスト div リスクへの防衛策** (Mermaid 出力が将来変わった場合の検出):
+**ネスト div の扱い (本フェーズの設計合意 = fallback (a) 採用)**:
 
-1. **PROP-19 property test に「ネスト div を含む fO に対しても SVG として well-formed のまま」のアサーションを必須化** (§4.2 参照)。具体的には fast-check で `<foreignObject><div xmlns="..." style="display:table-cell"><div>NESTED</div></div></foreignObject>` のようなランダム入力を生成し、F-2 適用後に `<foreignObject>` と `</foreignObject>` の数が保存される (= 構造破壊なし) ことを保証。**現実装の regex はこのテストで失敗する可能性が高い** ため、失敗したら以下のフォールバック方針:
-   - (a) 制約「ネスト div 非対応」を明示し、PROP-19 では「ネスト div 入力では出力 = 入力 (no-op)」を期待値とする
-   - (b) regex の `[\s\S]*?` を「最後の `</div>` までマッチ」に変更 (greedy + lookahead など) → 設計者と相談
-   - (c) `htmlparser2` 等の DOM パーサ導入 → 設計者と相談 (依存追加判断)
+本フェーズでは方針 **(a) 「ネスト div 非対応 / 該当ケースは no-op」** を採用済み。これは以下の理由による:
 
-   **本フェーズの推奨**: (a) を採用。Mermaid 11.15.0 系では実害なし、将来 Mermaid が DOM 構造を変えた場合は dependency-upgrade テスト (NFR-02) で検出される設計。
+- Mermaid 11.15.0 系の実出力では inner div にネストはなく、(a) で実害なし
+- (b)/(c) は実装範囲を広げる別判断 (依存追加 or 高度な regex) であり、本フェーズの設計合意外
 
-2. **dependency-upgrade 時の必須確認** (実装者は本ドキュメントに明記、PR description にも記載):
+**実装はこの (a) 方針が成立するように regex を作ること**: 具体的には regex がネスト div 入力でマッチしない (= no-op になる) ことを **PROP-19 P-4 が固定期待値で担保** する。P-4 が失敗した場合は実装側を修正 (regex を絞る) するのが正しい対応 — 詳細は §4.2 P-4 参照。
+
+将来 Mermaid 出力構造が変わった場合の検出経路:
+
+1. **PROP-19 P-3 (構造保存)** が継続的に走り、`<foreignObject>` タグ数の保存が崩れたら即時検知。
+2. **dependency-upgrade 時の必須確認** (実装者は PR description にも記載):
    - `package.json` で `mermaid` / `@mermaid-js/mermaid-cli` のバージョン pin を上げる際は、**12 ケースの SVG を再生成して inner div 構造が変わっていないことを目視確認**。
-   - 変わっていたら regex を更新するか、フォールバック方針 (b)/(c) を発動。
+   - 変わっていたら **本フェーズ外** として方針 (b) / (c) の採否を設計者と相談 (本 F-2 設計書の改訂対象)。
 
 `applyPostProcess` での呼び出し (F-1 の直後):
 
@@ -248,25 +259,24 @@ fc.property(arbSvgString, (svg) => {
 })
 ```
 
-**P-4: ネスト div を含む fO への取り扱い (§3.5.1 制約フォールバック)**
+**P-4: ネスト div を含む fO は no-op (固定期待値、§3.5.1 fallback (a) 採用前提)**
 
-`<foreignObject><div xmlns="..." style="display:table-cell"><div>NESTED</div></div></foreignObject>` 形の入力に対し、現実装 (fallback (a) = "ネスト div 非対応" 方針) では **入力 = 出力 (no-op)** または **構造保存 (well-formed SVG のまま)** のいずれかが成立すること。SVG 構造破壊 (`<foreignObject>` タグ数の変化、孤立タグの発生) は **NG**。
+`<foreignObject><div xmlns="..." style="display:table-cell"><div>NESTED</div></div></foreignObject>` 形の入力に対し、現実装は **入力 = 出力 (no-op)** であることを期待する。これは §3.5.1 のフォールバック方針 (a) (= 「ネスト div 非対応 / 該当ケースは触らない」) を採用済みであることの反映であり、テスト仕様としての**受入条件 (固定)**。
 
 ```ts
-// 期待値の選択は §3.5.1 のフォールバック方針に従う:
-//   (a) 採用 (推奨): no-op であることを期待
-//   (b)/(c) 採用: well-formed (タグ数保存) であることを期待
 fc.property(arbNestedDivForeignObjectSvg, (svg) => {
   const result = forceForeignObjectInnerCentered(svg)
-  // (a) の場合:
-  expect(result).toBe(svg)
-  // (b)/(c) の場合 (P-3 と統合してもよい):
-  // const fOCount = (svg.match(/<foreignObject\b/gi) || []).length
-  // expect((result.match(/<foreignObject\b/gi) || []).length).toBe(fOCount)
+  expect(result).toBe(svg)   // 固定: 入力と完全一致 (no-op)
 })
 ```
 
-**実装メモ**: P-4 が **fail した場合は実装変更ではなく PROP-19 自体の期待値を §3.5.1 のフォールバック (b)/(c) に切り替える** のが正しい対応。これは「現実装は Mermaid 11.15.0 系の現行 DOM のみ対象」という設計意図の反映。実装者が独断で regex を greedy 化する等の変更はせず、設計者に相談のこと。
+**P-4 が fail した場合の扱い**: P-4 失敗は「現実装の regex が想定外にネスト div ケースまでマッチしている」= **仕様違反**。テスト期待値を変えるのではなく、**実装側を修正** (= regex を `display:\s*table-cell` 直近の `</div>` のみマッチに絞り、ネスト div 入力ではマッチしない形にする) するのが正しい対応。
+
+具体的な実装修正の方針:
+- regex で内部の `<div>` が出現しないことをアサート (negative lookahead: `(?![\s\S]*?<div)`) するのが最小コスト
+- 構造的にネストを許容したい場合は §3.5.1 fallback (b)/(c) (greedy 終端 / parser 利用) への移行となるが、**それは別 PR 扱い** とし、設計者と相談すること
+
+**実装者が独断で fallback (b)/(c) に切り替えるのは禁止**。本フェーズの設計合意は (a) = no-op 固定。
 
 ### 4.3 結合テスト (Docker port 3101 で実 API を叩く)
 
@@ -359,7 +369,15 @@ PY
 ## 環境
 - ブランチ / コミット SHA
 - Docker compose 構成 (port 3101, .env.test)
-- Mermaid version (package.json から)
+- Mermaid version 一覧 (実体は transitive dependency なので **必ず実解決バージョン** を記録):
+  ```bash
+  npm ls mermaid @mermaid-js/mermaid-cli
+  # 例:
+  # mermaid-render-api@1.0.0
+  # └─┬ @mermaid-js/mermaid-cli@11.14.0
+  #   └── mermaid@11.15.0
+  ```
+  (`package.json` には `@mermaid-js/mermaid-cli@11.14.0` しか書かれていないが、実描画する `mermaid` 本体は transitive 解決でバージョン異なるので注意)
 - 検証実施者 / 実施日時
 
 ## 単体テスト結果
@@ -379,9 +397,16 @@ PY
 
 全 24 行で `|shift_px| < 2.0` か → ✓/✗
 
-### PNG バイト一致 (AC-P-1)
-- 12 ケース × PNG = 12 ファイル、修正前 (port 3100) と修正後 (port 3101) で `sha256sum` 一致確認
+### PNG パスへの F-2 不介入 (AC-4 = 正式担保)
+- `npm test -- postProcess.foreignObjectInnerCenter` の #13 (format=png バイト一致) が pass
+- 結果: ✓ / ✗
+
+### PNG バイト一致 (AC-P-1-Ref = 参考検証)
+- 12 ケース × PNG = 12 ファイル、本番 (port 3100) と test (port 3101) で `sha256sum` 比較
 - 一致した行数: __/12
+- 不一致があれば原因切り分け (image digest / `.env` 差分 / Chromium 環境差) を以下に記録:
+  - (記録)
+- 結論: F-2 起因 / 環境差起因 / 未判明
 
 ## 視覚比較スクリーンショット
 
@@ -407,10 +432,11 @@ PY
 |---|---|---|
 | AC-1 | 全 24 行で `|shift_px| < 2.0` | ✓ / ✗ |
 | AC-2 | 既存 F-1 テスト pass | ✓ / ✗ |
-| AC-3 | 新規 F-2 単体テスト pass | ✓ / ✗ |
-| AC-4 | PNG 出力 F-2 通らない (バイト一致) | ✓ / ✗ |
+| AC-3 | 新規 F-2 単体 + property テスト pass | ✓ / ✗ |
+| AC-4 | PNG 出力 F-2 通らない (単体テスト #13 で `Buffer.compare === 0`) | ✓ / ✗ |
 | AC-5 | 回帰チェックリスト全 PASS | ✓ / ✗ |
 | AC-6 | 視覚回帰スクリーンショット OK | ✓ / ✗ |
+| AC-P-1-Ref | 実 API PNG `sha256sum` 12/12 一致 (差があれば原因切り分け済) | ✓ / ✗ / 環境差で説明可 |
 
 ## 結論
 - 本 PR をマージしてよいか (Yes / No / Conditional)
@@ -475,9 +501,9 @@ PY
 - [ ] 7 パターンの SVG を生成し `regression-after/` に保存
 - [ ] ブラウザ等で開いて破綻なしを目視確認
 
-### Phase 7: PNG 一致確認 (AC-P-1)
-- [ ] 同じ 12 ケースを **port 3100 (本番)** にも投げて PNG を取得
-- [ ] `sha256sum` で全 12 PNG の前後一致確認
+### Phase 7: PNG 確認
+- [ ] **AC-4 (正式担保)**: `npm test -- postProcess.foreignObjectInnerCenter` の #13 (format=png バイト一致) が pass していることを確認
+- [ ] **AC-P-1-Ref (参考検証)**: 同じ 12 ケースを **port 3100 (本番)** にも投げて PNG を取得し、`sha256sum` で 12 PNG の比較。不一致があれば §2.2 の手順で原因切り分けを行い、報告書にすべて記録 (F-2 起因と決め付けない)
 
 ### Phase 8: スペック追記
 - [ ] `.kiro/specs/beautiful-svg-rendering/requirements.md` に REQ-U-10 追加
@@ -490,8 +516,13 @@ PY
 - [ ] 全成果物が揃ったことを確認 (§5.3)
 
 ### Phase 10: クリーンアップ & コミット
-- [ ] test Docker を停止: `docker compose --profile test down`
-- [ ] (本番 3100 は触らない、稼働継続)
+- [ ] **test サービスのみ** を停止・削除する。**`docker compose down` は禁止** (本番 `mermaid-render-api` を巻き込む):
+  ```bash
+  # サービス名を明示してピンポイントに stop + rm するのが安全
+  docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml stop mermaid-render-api-test
+  docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml rm -f mermaid-render-api-test
+  ```
+- [ ] 停止後に本番が稼働継続していることを確認: `docker compose ps` と `curl -sf http://127.0.0.1:3100/healthz`
 - [ ] 全変更を 1 つの PR としてまとめてコミット & プッシュ
 - [ ] PR description に本ドキュメントと検証報告書へのリンクを記載
 
@@ -499,7 +530,7 @@ PY
 
 ## 7. 注意事項
 
-- **本番 Docker (port 3100) を停止しない**。test サービス (port 3101) で並走検証する設計。
+- **本番 Docker (port 3100) を停止しない**。test サービス (port 3101) で並走検証する設計。**`docker compose down` 系のコマンドは絶対に使わない** (compose プロジェクト全体を巻き込み本番停止のリスクがある)。停止は必ずサービス名指定の `stop mermaid-render-api-test` + `rm -f mermaid-render-api-test`。
 - 検証中に **新しいバグや想定外の挙動** を見つけたら、修正には進まず本ドキュメントの依頼者にエスカレーション。仕様変更が必要な可能性あり。
 - 受入条件 AC-5 (回帰) で破綻が見つかった場合、本実装案を **maintain** にせず、依頼者と対応方針を相談。
 - `align-items:center` を入れているが、状態遷移図 (state diagram) で **縦方向の baseline が変わって text が上下にズレる** 可能性は zero ではない (foreignObject 内 XHTML レンダリングの細かい挙動依存)。AC-5 の state diagram ケースで実機確認すること。
