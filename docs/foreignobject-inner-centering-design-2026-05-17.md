@@ -44,24 +44,24 @@ Mermaid `dagre-wrapper` + `htmlLabels` で出力される SVG のラベル `<for
 | **冪等性** | 二回適用しても結果は同じ (二重ラップしない) |
 | **影響範囲外** | 既に `display:flex` でラップ済の foreignObject、`display:table-cell` 以外の inner div、SVG 以外の format |
 
-### 2.1 受入条件 (`extreme/measurements.json` ベースライン比較)
+### 2.1 受入条件 (extreme/measurements.json ベースライン → extreme-after/measurements.json 比較)
 
 | ID | 条件 | 根拠 |
 |---|---|---|
-| AC-1 | 修正後、`extreme/measurements.json` の **全 24 行 (12 cases × 2 nodes)** で `|shift_px| < 2.0` | rect 中心 ±1px 以内 = 視覚的に中央 |
-| AC-2 | 既存 F-1 テスト (`postProcess.foreignObjectOverflow.test.ts` + `prop-18`) は全て pass | 既存契約を壊さない |
-| AC-3 | 新規 F-2 単体テスト (`postProcess.foreignObjectInnerCenter.test.ts`) が pass | 設計通り |
-| AC-4 | `format=png` のレスポンスは F-2 を**通らない** (バイト一致) | F-1 と同じ方針 |
-| AC-5 | 後述の **回帰チェックリスト** で挙げた SVG パターン (flowchart / state diagram / edge label / 0×0 fO) で破綻なし | 副作用がない |
-| AC-6 | 視覚回帰スクリーンショット (本ドキュメント §6 で指定) で **修正前→修正後** で右寄りが消えていることを目視確認 | 人間判定 |
+| AC-1 | **修正後に新規生成する** `docs/text-right-shift-investigation-2026-05-17/extreme-after/measurements.json` の **全 24 行 (12 cases × 2 nodes)** で `\|shift_px\| < 2.0`。比較対象 (修正前ベースライン) は `extreme/measurements.json` | rect 中心 ±2px 以内。HTML レンダリングのサブピクセル誤差 (フォントヒンティング・小数 transform) を許容し、視覚的に「真ん中」と判定できる閾値として 2px を採用 |
+| AC-2 | 既存 F-1 単体テスト (`test/unit/postProcess.foreignObjectOverflow.test.ts`) と property テスト (`test/property/prop-18_force_foreignobject_overflow.property.test.ts`) は全て pass | 既存契約を壊さない (REQ-U-09 回帰なし) |
+| AC-3 | 新規 F-2 単体テスト (`test/unit/postProcess.foreignObjectInnerCenter.test.ts`) 14 件と property テスト (`test/property/prop-19_*.test.ts`) が pass | 設計通り |
+| AC-4 (単体テスト境界) | `applyPostProcess({format:'png',...})` の単体テストで F-2 のラッパ DOM が出力に含まれない | F-1 と同じ方針 (postProcess の format=png 早期 return が機能していることの単体確認) |
+| AC-5 | 後述の **回帰チェックリスト** (§4.3.5) で挙げた SVG パターン (flowchart / state diagram / edge label / cluster / 0×0 fO) で破綻なし | 副作用がない |
+| AC-6 | 視覚回帰スクリーンショット (§4.3.4 の手順、Phase 5 で撮影) で **修正前 (`extreme-overview.png`) → 修正後 (`extreme-overview-after.png`)** で右寄りが消えていることを目視確認 | 人間判定 |
 
-### 2.2 受入条件 (PNG 出力)
+### 2.2 受入条件 (PNG 出力 / 実 API バイト一致)
 
-PNG は元々 Puppeteer 内で完結するため shift_px は **既にほぼ 0** (測定済みで PNG 側のズレ無し)。
+PNG は元々 Puppeteer 内で完結するため shift_px は **既にほぼ 0** (測定済みで PNG 側のズレ無し)。AC-4 が単体テスト境界での担保なのに対し、本項は **実 API バイト一致** での担保。
 
 | ID | 条件 |
 |---|---|
-| AC-P-1 | 修正前後で同一入力に対する PNG バイトが一致 (= F-2 が PNG に作用しない) |
+| AC-P-1 (結合テスト) | 同一入力 12 ケースを **本番 (port 3100) と修正後 test (port 3101)** にそれぞれ投げた PNG レスポンスを `sha256sum` した結果が 12/12 で一致 | F-2 が実 API レベルでも PNG を変更していないことを担保 |
 
 ---
 
@@ -72,11 +72,11 @@ PNG は元々 Puppeteer 内で完結するため shift_px は **既にほぼ 0**
 | ファイル | 変更 |
 |---|---|
 | `src/renderer/postProcess.ts` | `forceForeignObjectInnerCentered` 関数を追加 (40-50 行)、`applyPostProcess` から呼び出し (1 行) |
-| `test/unit/postProcess.foreignObjectInnerCenter.test.ts` | **新規作成** (60-80 行、テスト 10-12 件) |
+| `test/unit/postProcess.foreignObjectInnerCenter.test.ts` | **新規作成** (80-100 行、テスト 14 件、§4.1 の表の通り) |
 | `test/property/prop-19_force_foreignobject_inner_center.property.test.ts` | **新規作成** (40-60 行、`prop-18` を雛形に) |
 | `.kiro/specs/beautiful-svg-rendering/requirements.md` | REQ-U-10 セクション追加 (REQ-U-09 の直後、§ 構造を真似る) |
 | `.kiro/specs/beautiful-svg-rendering/design.md` | §7 配下に F-2 設計サブセクション追加 (REQ-U-09 と並列) |
-| `.kiro/specs/beautiful-svg-rendering/tasks.md` | Phase 7 or Patch P-XX として F-2 タスクブロックを追加 |
+| `.kiro/specs/beautiful-svg-rendering/tasks.md` | Phase 7 (F-2) として F-2 タスクブロックを追加。**(本ドキュメントを以て AGENTS.md line 20 の「ユーザーから明確な指示」とみなし、新規 Phase 追加を許可する。本許可はこの F-2 タスク追加のみに有効で、既存 Phase 0-6 のタスク名・ID・並び・本文は変更禁止。)** |
 | `docs/svg-foreignobject-overflow-fix-verification-2026-05-16.md` | line 107-111 の「symmetric」記述を「F-2 適用後は本当に左右対称」と修正 |
 
 ### 3.2 DOM 構造 (Before / After)
@@ -144,6 +144,31 @@ export function forceForeignObjectInnerCentered(svg: string): string {
 
 **冪等性の根拠**: 正規表現は `display:\s*table-cell` のみマッチ。1 回適用後の外側 div は `display:flex` なのでマッチせず、内側 div (`table-cell`) は 1 階層深くなるが foreignObject 直下ではない (= `(<foreignObject\b[^>]*>)` 直後ではない) のでマッチしない → 二回目は no-op。
 
+#### 3.5.1 正規表現の **適用範囲制約 (重要)**
+
+本 regex は **Mermaid 11.15.0 系の現行 SVG 出力** にのみ動作保証する。具体的に次の前提に依存する:
+
+| 前提 | 現行 Mermaid 出力 | 違反したらどうなる |
+|---|---|---|
+| foreignObject 直下の最初の子は `<div xmlns="http://www.w3.org/1999/xhtml" style="...display:table-cell...">` | 全 fO で成立 (調査 SVG 8 サンプル確認済) | マッチせず F-2 が no-op (= 現状維持、害なし) |
+| inner div の **中身に `<div>` のネストがない** (`<span>` `<p>` のみ) | 全 fO で成立 (調査済) | **最初の `</div>` でマッチ終端 → SVG 構造破壊リスク**。下記 PROP-19 で検出 |
+| inner div 属性は **ダブルクォート** `"..."` | 全 fO で成立 | シングルクォートだとマッチせず no-op (現状維持) |
+| inner div 属性順: `xmlns` が `style` より **前** | 全 fO で成立 | 順序逆だとマッチせず no-op (現状維持) |
+| 属性内に改行なし | 全 fO で成立 | 改行入りだとマッチせず no-op (現状維持) |
+
+**ネスト div リスクへの防衛策** (Mermaid 出力が将来変わった場合の検出):
+
+1. **PROP-19 property test に「ネスト div を含む fO に対しても SVG として well-formed のまま」のアサーションを必須化** (§4.2 参照)。具体的には fast-check で `<foreignObject><div xmlns="..." style="display:table-cell"><div>NESTED</div></div></foreignObject>` のようなランダム入力を生成し、F-2 適用後に `<foreignObject>` と `</foreignObject>` の数が保存される (= 構造破壊なし) ことを保証。**現実装の regex はこのテストで失敗する可能性が高い** ため、失敗したら以下のフォールバック方針:
+   - (a) 制約「ネスト div 非対応」を明示し、PROP-19 では「ネスト div 入力では出力 = 入力 (no-op)」を期待値とする
+   - (b) regex の `[\s\S]*?` を「最後の `</div>` までマッチ」に変更 (greedy + lookahead など) → 設計者と相談
+   - (c) `htmlparser2` 等の DOM パーサ導入 → 設計者と相談 (依存追加判断)
+
+   **本フェーズの推奨**: (a) を採用。Mermaid 11.15.0 系では実害なし、将来 Mermaid が DOM 構造を変えた場合は dependency-upgrade テスト (NFR-02) で検出される設計。
+
+2. **dependency-upgrade 時の必須確認** (実装者は本ドキュメントに明記、PR description にも記載):
+   - `package.json` で `mermaid` / `@mermaid-js/mermaid-cli` のバージョン pin を上げる際は、**12 ケースの SVG を再生成して inner div 構造が変わっていないことを目視確認**。
+   - 変わっていたら regex を更新するか、フォールバック方針 (b)/(c) を発動。
+
 `applyPostProcess` での呼び出し (F-1 の直後):
 
 ```ts
@@ -173,7 +198,7 @@ if (input.postProcess?.strip_max_width) { /* ... */ }
 
 ### 4.1 単体テスト (`test/unit/postProcess.foreignObjectInnerCenter.test.ts`)
 
-`postProcess.foreignObjectOverflow.test.ts` を雛形にして以下の 10 件を実装:
+`postProcess.foreignObjectOverflow.test.ts` を雛形にして以下の **14 件** を実装:
 
 | # | テスト名 | 入力 (svg 抜粋) | 期待結果 |
 |---|---|---|---|
@@ -189,12 +214,14 @@ if (input.postProcess?.strip_max_width) { /* ... */ }
 | 10 | preserves CJK / emoji content in inner text | `<foreignObject><div xmlns="..." style="display: table-cell"><span>集める ✓</span></div></foreignObject>` | 中身保持 |
 | 11 | 0×0 foreignObject still wrapped (no error) | `<foreignObject width="0" height="0"><div ... display: table-cell></div></foreignObject>` | ラップされる (無害) |
 | 12 | (applyPostProcess) F-2 runs for format=svg | applyPostProcess 経由 | flex ラッパが出る |
-| 13 | (applyPostProcess) F-2 does NOT run for format=png | applyPostProcess 経由 | PNG バイト一致 |
+| 13 | (applyPostProcess) F-2 does NOT run for format=png (AC-4 担保) | applyPostProcess 経由で `Buffer.from(...PNG bytes...)` を投入 | 入力バッファと出力バッファが `Buffer.compare === 0` (バイト一致) |
 | 14 | (applyPostProcess) F-1 + F-2 を併用、F-1 が先 | foreignObject に style なし | `style="overflow:visible"` と flex ラッパの両方 |
 
 ### 4.2 プロパティテスト (`test/property/prop-19_force_foreignobject_inner_center.property.test.ts`)
 
-`prop-18` を雛形に、fast-check で **「ランダム生成 SVG に対する冪等性」** を保証:
+`prop-18` を雛形に、fast-check で次のプロパティを保証:
+
+**P-1: 冪等性 (idempotency)**
 
 ```ts
 fc.property(arbForeignObjectSvg, (svg) => {
@@ -204,9 +231,42 @@ fc.property(arbForeignObjectSvg, (svg) => {
 })
 ```
 
-その他のプロパティ:
-- 「table-cell を含まない fO は不変」
-- 「foreignObject 数の保存 (ラップしても fO 数は変わらない)」
+**P-2: table-cell を含まない fO は不変**
+
+`<foreignObject>` の inner div が `display:table-cell` を含まない場合 (例: `display:block` / `display:inline` / そもそも inner div が存在しない)、出力 = 入力。
+
+**P-3: foreignObject 数の保存 (構造破壊なし)**
+
+任意のランダム SVG (`<foreignObject>` を含むものと含まないもの) に対し、F-2 適用前後で `<foreignObject>` および `</foreignObject>` の出現数が等しい。
+
+```ts
+fc.property(arbSvgString, (svg) => {
+  const result = forceForeignObjectInnerCentered(svg)
+  const before = (svg.match(/<foreignObject\b/gi) || []).length
+  const after = (result.match(/<foreignObject\b/gi) || []).length
+  expect(after).toBe(before)
+})
+```
+
+**P-4: ネスト div を含む fO への取り扱い (§3.5.1 制約フォールバック)**
+
+`<foreignObject><div xmlns="..." style="display:table-cell"><div>NESTED</div></div></foreignObject>` 形の入力に対し、現実装 (fallback (a) = "ネスト div 非対応" 方針) では **入力 = 出力 (no-op)** または **構造保存 (well-formed SVG のまま)** のいずれかが成立すること。SVG 構造破壊 (`<foreignObject>` タグ数の変化、孤立タグの発生) は **NG**。
+
+```ts
+// 期待値の選択は §3.5.1 のフォールバック方針に従う:
+//   (a) 採用 (推奨): no-op であることを期待
+//   (b)/(c) 採用: well-formed (タグ数保存) であることを期待
+fc.property(arbNestedDivForeignObjectSvg, (svg) => {
+  const result = forceForeignObjectInnerCentered(svg)
+  // (a) の場合:
+  expect(result).toBe(svg)
+  // (b)/(c) の場合 (P-3 と統合してもよい):
+  // const fOCount = (svg.match(/<foreignObject\b/gi) || []).length
+  // expect((result.match(/<foreignObject\b/gi) || []).length).toBe(fOCount)
+})
+```
+
+**実装メモ**: P-4 が **fail した場合は実装変更ではなく PROP-19 自体の期待値を §3.5.1 のフォールバック (b)/(c) に切り替える** のが正しい対応。これは「現実装は Mermaid 11.15.0 系の現行 DOM のみ対象」という設計意図の反映。実装者が独断で regex を greedy 化する等の変更はせず、設計者に相談のこと。
 
 ### 4.3 結合テスト (Docker port 3101 で実 API を叩く)
 
@@ -422,7 +482,7 @@ PY
 ### Phase 8: スペック追記
 - [ ] `.kiro/specs/beautiful-svg-rendering/requirements.md` に REQ-U-10 追加
 - [ ] `.kiro/specs/beautiful-svg-rendering/design.md` に F-2 設計サブセクション追加
-- [ ] `.kiro/specs/beautiful-svg-rendering/tasks.md` に Phase 7 or Patch P-XX 追加
+- [ ] `.kiro/specs/beautiful-svg-rendering/tasks.md` に Phase 7 (F-2) ブロックを **末尾追記** (§3.1 の許可注記に従う。既存 Phase は不変)
 - [ ] `docs/svg-foreignobject-overflow-fix-verification-2026-05-16.md` line 107-111 修正
 
 ### Phase 9: 検証報告書
