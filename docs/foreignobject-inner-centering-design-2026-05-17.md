@@ -167,7 +167,7 @@ export function forceForeignObjectInnerCentered(svg: string): string {
 | 前提 | 現行 Mermaid 出力 | 違反したらどうなる |
 |---|---|---|
 | foreignObject 直下の最初の子は `<div xmlns="http://www.w3.org/1999/xhtml" style="...display:table-cell...">` | 全 fO で成立 (調査 SVG 8 サンプル確認済) | マッチせず F-2 が no-op (= 現状維持、害なし) |
-| inner div の **中身に `<div>` のネストがない** (`<span>` `<p>` のみ) | 全 fO で成立 (調査済) | **最初の `</div>` でマッチ終端 → SVG 構造破壊リスク**。下記 PROP-19 で検出 |
+| inner div の **中身に `<div>` のネストがない** (`<span>` `<p>` のみ) | 全 fO で成立 (調査済) | §3.5 の tempered greedy token (`(?:(?!<div\b)[\s\S])*?`) によりマッチせず no-op (= 現状維持、SVG 構造保護)。PROP-19 P-4 で固定担保 |
 | inner div 属性は **ダブルクォート** `"..."` | 全 fO で成立 | シングルクォートだとマッチせず no-op (現状維持) |
 | inner div 属性順: `xmlns` が `style` より **前** | 全 fO で成立 | 順序逆だとマッチせず no-op (現状維持) |
 | 属性内に改行なし | 全 fO で成立 | 改行入りだとマッチせず no-op (現状維持) |
@@ -374,7 +374,9 @@ PY
 
 ### 5.2 必須セクション (テンプレート)
 
-```markdown
+外側は 4 連バッククォート (内側に ` ```bash ` ブロックを含むため)。テンプレートをコピーする時は外側 4 連を 3 連に直してから使用すること。
+
+````markdown
 # foreignObject 内側センタリング検証 (REQ-U-10) — YYYY-MM-DD
 
 ## 環境
@@ -455,7 +457,7 @@ PY
 
 ## 派生発見 (任意)
 - 検証中に気づいた既存バグ / 改善ポイントを箇条書き
-```
+````
 
 ### 5.3 必須コミット対象
 
