@@ -135,8 +135,11 @@ PNG は元々 Puppeteer 内で完結するため shift_px は **既にほぼ 0**
 `src/renderer/postProcess.ts` 内、F-1 (`forceForeignObjectOverflowVisible`) の直下に並列で追加する:
 
 ```ts
+// 内側コンテンツに <div ネストがない場合のみマッチ させるため、
+// tempered greedy token `(?:(?!<div\b)[\s\S])*?` を使う。
+// これにより § 3.5.1 fallback (a) と PROP-19 P-4 (no-op 固定) を満たす。
 const INNER_DIV_TABLECELL_PATTERN =
-  /(<foreignObject\b[^>]*>)(\s*)(<div\b[^>]*xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"[^>]*style="[^"]*display:\s*table-cell[^"]*"[^>]*>)([\s\S]*?)(<\/div>)(\s*)(<\/foreignObject>)/gi
+  /(<foreignObject\b[^>]*>)(\s*)(<div\b[^>]*xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"[^>]*style="[^"]*display:\s*table-cell[^"]*"[^>]*>)((?:(?!<div\b)[\s\S])*?)(<\/div>)(\s*)(<\/foreignObject>)/gi
 
 const FLEX_WRAPPER_OPEN =
   '<div xmlns="http://www.w3.org/1999/xhtml" style="display:flex;justify-content:center;align-items:center;width:100%;height:100%">'
@@ -150,7 +153,12 @@ export function forceForeignObjectInnerCentered(svg: string): string {
 }
 ```
 
-**冪等性の根拠**: 正規表現は `display:\s*table-cell` のみマッチ。1 回適用後の外側 div は `display:flex` なのでマッチせず、内側 div (`table-cell`) は 1 階層深くなるが foreignObject 直下ではない (= `(<foreignObject\b[^>]*>)` 直後ではない) のでマッチしない → 二回目は no-op。
+**ネスト div 除外の仕組み (P-4 担保)**:
+- `(?:(?!<div\b)[\s\S])*?` は **「`<div` で始まらない任意の 1 文字」を非貪欲に繰り返す** パターン (tempered greedy token / テンパード貪欲トークン)。
+- 入力に `<foreignObject><div ... display:table-cell><div>NESTED</div></div></foreignObject>` のような **ネスト div** が含まれる場合、開始 table-cell div の直後で `<div>NESTED` を発見した時点で negative lookahead `(?!<div\b)` が false となりマッチ失敗 → **no-op** (= P-4 期待値を満たす)。
+- 一方、Mermaid 11.15.0 現行出力 (`<span><p>...</p></span>` のみ、`<div>` ネストなし) では問題なくマッチして flex ラップが入る。
+
+**冪等性の根拠**: 正規表現は `display:\s*table-cell` のみマッチ。1 回適用後の外側 div は `display:flex` なのでマッチせず、内側 div (`table-cell`) は 1 階層深くなるが foreignObject 直下ではない (= `(<foreignObject\b[^>]*>)` 直後ではない) のでマッチしない。さらに、ラップ後の構造は **外側 flex div の内部に内側 table-cell div が `<div>` ネストとして存在する** ため、上記 tempered token が両方ともマッチ失敗を保証 → **二回目以降は完全 no-op**。
 
 #### 3.5.1 正規表現の **適用範囲制約 (重要)**
 
@@ -253,9 +261,12 @@ fc.property(arbForeignObjectSvg, (svg) => {
 ```ts
 fc.property(arbSvgString, (svg) => {
   const result = forceForeignObjectInnerCentered(svg)
-  const before = (svg.match(/<foreignObject\b/gi) || []).length
-  const after = (result.match(/<foreignObject\b/gi) || []).length
-  expect(after).toBe(before)
+  const beforeOpen = (svg.match(/<foreignObject\b/gi) || []).length
+  const afterOpen = (result.match(/<foreignObject\b/gi) || []).length
+  const beforeClose = (svg.match(/<\/foreignObject>/gi) || []).length
+  const afterClose = (result.match(/<\/foreignObject>/gi) || []).length
+  expect(afterOpen).toBe(beforeOpen)
+  expect(afterClose).toBe(beforeClose)
 })
 ```
 
