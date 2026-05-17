@@ -1,0 +1,156 @@
+[
+  {
+    "case": "01-flowchart",
+    "fo_before": 7,
+    "fo_after": 7,
+    "fo_count_changed": false,
+    "flex_added": 7,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 938
+  },
+  {
+    "case": "02-state-simple",
+    "fo_before": 7,
+    "fo_after": 7,
+    "fo_count_changed": false,
+    "flex_added": 7,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 938
+  },
+  {
+    "case": "03-state-composite",
+    "fo_before": 8,
+    "fo_after": 8,
+    "fo_count_changed": false,
+    "flex_added": 8,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 1072
+  },
+  {
+    "case": "04-sequence",
+    "fo_before": 0,
+    "fo_after": 0,
+    "fo_count_changed": false,
+    "flex_added": 0,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 0
+  },
+  {
+    "case": "05-class",
+    "fo_before": 8,
+    "fo_after": 8,
+    "fo_count_changed": false,
+    "flex_added": 8,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 1066
+  },
+  {
+    "case": "06-er",
+    "fo_before": 13,
+    "fo_after": 13,
+    "fo_count_changed": false,
+    "flex_added": 13,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 1721
+  },
+  {
+    "case": "07-gantt",
+    "fo_before": 0,
+    "fo_after": 0,
+    "fo_count_changed": false,
+    "flex_added": 0,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 0
+  },
+  {
+    "case": "08-pie",
+    "fo_before": 0,
+    "fo_after": 0,
+    "fo_count_changed": false,
+    "flex_added": 0,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 0
+  },
+  {
+    "case": "09-journey",
+    "fo_before": 6,
+    "fo_after": 6,
+    "fo_count_changed": false,
+    "flex_added": 0,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 0
+  },
+  {
+    "case": "10-gitgraph",
+    "fo_before": 0,
+    "fo_after": 0,
+    "fo_count_changed": false,
+    "flex_added": 0,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 63
+  },
+  {
+    "case": "11-mindmap",
+    "fo_before": 15,
+    "fo_after": 15,
+    "fo_count_changed": false,
+    "flex_added": 15,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 2010
+  },
+  {
+    "case": "12-timeline",
+    "fo_before": 0,
+    "fo_after": 0,
+    "fo_count_changed": false,
+    "flex_added": 0,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 0
+  },
+  {
+    "case": "13-requirement",
+    "fo_before": 10,
+    "fo_after": 10,
+    "fo_count_changed": false,
+    "flex_added": 8,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 1068
+  },
+  {
+    "case": "14-quadrant",
+    "fo_before": 0,
+    "fo_after": 0,
+    "fo_count_changed": false,
+    "flex_added": 0,
+    "table_cell_changed": 0,
+    "svg_identical": false,
+    "fo_balanced_after": true,
+    "size_delta_bytes": 0
+  }
+]

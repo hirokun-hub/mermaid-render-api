@@ -1,0 +1,16 @@
+{
+  "01-flowchart": "flowchart LR\n  A[\"集める ✓\"] --> B{判定}\n  B -->|Yes| C[完了]\n  B -->|No| D[再試行]",
+  "02-state-simple": "stateDiagram-v2\n  [*] --> Idle\n  Idle --> Running: start\n  Running --> Done: finish\n  Done --> [*]",
+  "03-state-composite": "stateDiagram-v2\n  [*] --> Active\n  state Active {\n    [*] --> X\n    X --> Y\n    Y --> [*]\n  }\n  Active --> [*]",
+  "04-sequence": "sequenceDiagram\n  participant A as ユーザー\n  participant B as サーバー\n  A->>B: リクエスト ✓\n  B-->>A: レスポンス\n  Note over A,B: 重要な処理",
+  "05-class": "classDiagram\n  class Animal {\n    +String name\n    +int age\n    +eat()\n    +sleep()\n  }\n  class Dog {\n    +bark()\n  }\n  Animal <|-- Dog",
+  "06-er": "erDiagram\n  CUSTOMER ||--o{ ORDER : places\n  ORDER ||--|{ LINE-ITEM : contains\n  CUSTOMER {\n    string name\n    string email\n  }",
+  "07-gantt": "gantt\n  title プロジェクト計画\n  dateFormat YYYY-MM-DD\n  section 設計\n  要件定義 :a1, 2026-01-01, 7d\n  設計 :a2, after a1, 10d\n  section 実装\n  開発 :b1, after a2, 14d",
+  "08-pie": "pie title 言語別\n  \"JavaScript\" : 45\n  \"TypeScript\" : 30\n  \"Python\" : 25",
+  "09-journey": "journey\n  title ユーザー体験\n  section 起動\n    アプリ起動: 5: User\n    ログイン: 3: User\n  section 利用\n    検索: 4: User\n    結果確認: 5: User",
+  "10-gitgraph": "gitGraph\n  commit\n  branch develop\n  checkout develop\n  commit\n  commit\n  checkout main\n  merge develop\n  commit",
+  "11-mindmap": "mindmap\n  root((Mermaid))\n    Flowchart\n      LR\n      TD\n    State\n      v1\n      v2\n    Class",
+  "12-timeline": "timeline\n  title 開発の歴史\n  2020 : 設計開始\n  2021 : MVP リリース\n  2022 : 機能追加\n  2023 : 本格展開",
+  "13-requirement": "requirementDiagram\n  requirement test_req {\n    id: 1\n    text: 重要な要件\n    risk: high\n  }\n  element test {\n    type: simulation\n  }\n  test - satisfies -> test_req",
+  "14-quadrant": "quadrantChart\n  title 評価\n  x-axis Low --> High\n  y-axis Low --> High\n  Item A: [0.3, 0.6]\n  Item B: [0.7, 0.8]"
+}

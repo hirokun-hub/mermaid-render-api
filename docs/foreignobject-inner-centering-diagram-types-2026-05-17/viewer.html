@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>diagram types side effects</title>
+<style>
+  body { margin:0; padding:16px 24px; font-family:sans-serif; background:#fafafa; color:#222; }
+  h2 { font-size:14px; margin: 8px 0 12px; }
+  table { border-collapse: collapse; width:100%; }
+  td, th { vertical-align: top; padding: 8px 12px; border-bottom: 1px solid #eee; font-size:12px; text-align:left; }
+  td.label { font-family: monospace; color: #333; white-space: nowrap; font-weight:600; }
+  td.stage { background:#fff; border:1px solid #ddd; padding: 8px; min-width: 320px; }
+  td.stage img, td.stage object { max-width: 400px; max-height: 260px; display:block; background:#fff; }
+  .ok { color:#080; font-weight:600; }
+  .neut { color:#888; }
+  .warn { color:#c80; font-weight:600; }
+</style>
+</head><body>
+<h2>F-2 副作用調査: 14 ダイアグラム × before(3100) / after(3101) 比較</h2>
+<table id="t">
+  <tr><th>case</th><th>before (no F-2)</th><th>after (F-2)</th><th>F-2 effect</th></tr>
+</table>
+<script>
+const cases = [
+  { name: "01-flowchart",        type: "flowchart",       effect: "<span class='ok'>+7 wrap (全fO)</span>" },
+  { name: "02-state-simple",     type: "stateDiagram-v2", effect: "<span class='ok'>+7 wrap (全fO)</span>" },
+  { name: "03-state-composite",  type: "stateDiagram-v2", effect: "<span class='ok'>+8 wrap (全fO)</span>" },
+  { name: "04-sequence",         type: "sequenceDiagram", effect: "<span class='neut'>fO=0 / 影響なし</span>" },
+  { name: "05-class",            type: "classDiagram",    effect: "<span class='ok'>+8 wrap (全fO)</span>" },
+  { name: "06-er",               type: "erDiagram",       effect: "<span class='ok'>+13 wrap (全fO)</span>" },
+  { name: "07-gantt",            type: "gantt",           effect: "<span class='neut'>fO=0 / 影響なし</span>" },
+  { name: "08-pie",              type: "pie",             effect: "<span class='neut'>fO=0 / 影響なし</span>" },
+  { name: "09-journey",          type: "journey",         effect: "<span class='warn'>fO=6 だが +0 wrap (display:table 構造で regex 不一致)</span>" },
+  { name: "10-gitgraph",         type: "gitGraph",        effect: "<span class='neut'>fO=0 / 影響なし</span>" },
+  { name: "11-mindmap",          type: "mindmap",         effect: "<span class='ok'>+15 wrap (全fO)</span>" },
+  { name: "12-timeline",         type: "timeline",        effect: "<span class='neut'>fO=0 / 影響なし</span>" },
+  { name: "13-requirement",      type: "requirementDiagram", effect: "<span class='ok'>+8 wrap (10fOのうち8、2件は属性順制約)</span>" },
+  { name: "14-quadrant",         type: "quadrantChart",   effect: "<span class='neut'>fO=0 / 影響なし</span>" },
+];
+const t = document.getElementById('t');
+cases.forEach(c => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="label">${c.name}<br><span style="font-weight:400;color:#888">${c.type}</span></td>
+    <td class="stage"><object data="before/${c.name}.svg" type="image/svg+xml"></object></td>
+    <td class="stage"><object data="after/${c.name}.svg" type="image/svg+xml"></object></td>
+    <td>${c.effect}</td>`;
+  t.appendChild(tr);
+});
+</script>
+</body></html>
