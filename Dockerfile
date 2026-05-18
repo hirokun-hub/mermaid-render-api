@@ -24,6 +24,7 @@ RUN apt-get update \
     chromium-sandbox \
     tini \
     fonts-noto-cjk \
+    fonts-noto-color-emoji \
     libcairo2 \
     libpango-1.0-0 \
     libjpeg62-turbo \
