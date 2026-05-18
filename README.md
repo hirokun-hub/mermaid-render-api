@@ -1,13 +1,35 @@
 # Mermaid Render API
 
-MermaidコードをSVG/PNG画像に変換するHTTP APIです。TypeScript + Express で `/render`、`/healthz`、`/livez`、`/readyz`、`/metrics` を提供し、既定では `@mermaid-js/mermaid-cli` の Programmatic API と常駐 BrowserPool でレンダリングします。
+[日本語版 README はこちら / Japanese README](./README.ja.md)
 
-## 前提
+An HTTP API that converts Mermaid source code into SVG / PNG images. Built with TypeScript + Express, exposing `/render`, `/healthz`, `/livez`, `/readyz`, and `/metrics`. By default it uses the `@mermaid-js/mermaid-cli` Programmatic API together with a long-lived BrowserPool.
+
+## Highlights
+
+### Fixes Mermaid's foreignObject text-centering bug
+
+In upstream Mermaid 11.15.0, text inside a node is rendered via a `<foreignObject>` whose inner `<div>` uses `display: table-cell`. When the text contains narrow glyphs (`i`), wide glyphs (`W`), emoji, or CJK punctuation, the rendered glyphs drift to the right of the rectangle's geometric center. This API post-processes the SVG to wrap that inner `<div>` in a flex container (`display: flex; justify-content: center; align-items: center`), restoring true centering for both SVG and PNG output.
+
+| Without the fix (raw Mermaid 11.15.0) | With this API |
+|---|---|
+| ![before](docs/text-right-shift-investigation-2026-05-17/extreme-overview.png) | ![after](docs/text-right-shift-investigation-2026-05-17/extreme-overview-after.png) |
+
+The dashed red line is the measured center of the node's `rect`. In the "before" image text drifts noticeably right of the line; in the "after" image text sits on the line. See `docs/foreignobject-inner-centering-verification-2026-05-17.md` for the 14-diagram regression breakdown.
+
+### Other notable features
+
+- **Per-request PNG resolution**: `scale: 1..4` (default `3`), specified at request time — no env var needed.
+- **Mermaid-default-compatible defaults**: `flowchart.useMaxWidth=true`, `diagramPadding=8`, `nodeSpacing=rankSpacing=50`. The SVG fits its parent element naturally when embedded in HTML.
+- **Chromium sandbox enabled**: no `--no-sandbox`. Hardened container with non-root execution, read-only filesystem, tmpfs, capability drop, and PID / memory limits.
+- **Long-lived BrowserPool**: low-latency rendering via persistent Chromium contexts.
+- **Defensive validation**: per-request `mermaid_config` override is validated against a server-side schema with prototype-pollution protection.
+
+## Prerequisites
 
 - Node.js 20
-- Docker Desktop（WSL利用可）
+- Docker Desktop (WSL supported)
 
-## ローカル実行
+## Local execution
 
 ```bash
 npm install
@@ -15,34 +37,36 @@ npm run build
 npm run start
 ```
 
-## Docker 実行
+## Docker execution
 
-このリポジトリの標準 Docker 構成は、安全な厨房（Chromium sandbox）を使う前提です。Mermaid は内部で Chromium を使って描画するため、標準では `--no-sandbox` を使わず、コンテナ側も非 root / read-only filesystem / tmpfs / capability drop を前提にしています。
+The standard Docker setup assumes a working Chromium sandbox. Mermaid renders through Chromium internally, so by default we do **not** use `--no-sandbox`. The container runs as non-root with a read-only filesystem, tmpfs, and capability drop.
 
-この API はローカル起動、または Tailscale などの VPN 内利用を想定しています。インターネットへ直接公開しないでください。
+This API is intended for local use or use inside a VPN (e.g. Tailscale). **Do not expose it directly to the public internet.**
 
-1) `.env` を作成
+1) Create `.env`
+
 ```bash
 cp .env.example .env
 ```
 
-2) 標準起動（Windows Docker Desktop 本番・開発共通）
+2) Standard startup (Windows Docker Desktop, both production and development)
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml up --build -d
 ```
 
-本番運用は Windows Docker Desktop を前提とします（`requirements.md` C-P-09）。Docker Desktop は LinuxKit VM 経由で動作するため、Chromium sandbox が隔離部屋（namespace / chroot）を作るために `SYS_ADMIN` / `SYS_CHROOT` capability を追加する `docker-compose.dev-sysadmin.yml` overlay の併用が必須です。overlay を外して `docker compose up` のみで起動すると、コンテナが restart loop になります（`Failed to move to new namespace ... Operation not permitted`）。
+Production is assumed to run on Windows Docker Desktop (`requirements.md` C-P-09). Because Docker Desktop runs through a LinuxKit VM, Chromium needs `SYS_ADMIN` / `SYS_CHROOT` capabilities (added by the `docker-compose.dev-sysadmin.yml` overlay) to create the namespace / chroot for its sandbox. Without the overlay the container enters a restart loop (`Failed to move to new namespace ... Operation not permitted`).
 
-3) Linux 直接ホスト（ベアメタル / 非 Docker Desktop の Linux サーバ）の場合のみ
+3) Linux bare-metal hosts (only, not Docker Desktop on Linux)
 
 ```bash
 docker compose up --build -d
 ```
 
-Linux 直接ホストでは user namespace が利用可能なため overlay 不要です。ただし本リポジトリの本番運用範囲は Windows Docker Desktop のみで、Linux 直接ホスト向けの seccomp / AppArmor 設定は提供していません。Linux 本番運用を行う場合は、実行基盤側で Chromium sandbox が通ることを別途検証してください。
+On a bare-metal Linux host the user namespace is available, so the overlay is not required. The production support scope of this repository is Windows Docker Desktop only — we do not ship seccomp / AppArmor profiles for bare-metal Linux. If you intend to run on Linux directly, validate that the Chromium sandbox works on your infrastructure separately.
 
-4) 動作確認
+4) Sanity check
+
 ```bash
 curl -i http://localhost:3100/healthz
 curl -i http://localhost:3100/readyz
@@ -52,84 +76,143 @@ curl -i -X POST http://localhost:3100/render \
   -d '{"code":"graph TD\nA-->B","format":"svg"}'
 ```
 
-## WSL での起動
+## Starting from WSL
 
-WindowsでDocker Desktopを有効化し、対象のWSLディストリで以下を実行します。WSL から Docker Desktop を呼び出している場合も実体は Windows Docker Desktop (LinuxKit VM) なので、本番と同じ overlay 併用が必須です。
+Enable Docker Desktop on Windows and run the following inside your WSL distribution. WSL invocations are still backed by Windows Docker Desktop (LinuxKit VM), so the overlay is required.
 
 ```bash
 cp .env.example .env
 docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml up --build -d
 ```
 
-## 環境変数
+## `/render` API
 
-`.env` で調整可能です（Docker起動時に読み込まれます）。
+`POST /render` accepts a JSON body and returns binary image data (`image/svg+xml` or `image/png`).
 
-- `DEFAULT_TIMEOUT_MS`: Mermaid CLI のタイムアウト（ミリ秒、デフォルト 8000）
-- `RATE_LIMIT_MAX_INFLIGHT`: HTTP層の同時受付上限（デフォルト 15）
-- `BROWSER_POOL_SIZE`: BrowserContextプールサイズ（デフォルト 4）
-- `POOL_QUEUE_MAX`: BrowserPoolの待ちキュー上限（デフォルト 20）
-- `MAX_CODE_SIZE`: `code` の最大バイト数（デフォルト 51200）
-- `PNG_RENDER_SCALE`: PNG出力時の拡大率（デフォルト 2、SVGには適用しない）
-- `MERMAID_PADDING`: CLI fallback互換用の余白（ピクセル、デフォルト 0）
-- `RENDERER_MODE`: `programmatic` または `cli`（デフォルト `programmatic`）
+### Request body
 
-## 依存更新ポリシー
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `code` | string | ✓ | Mermaid source. Up to `MAX_CODE_SIZE` bytes (default 51200). |
+| `format` | `"svg"` \| `"png"` | optional | Output format. Defaults to `svg`. |
+| `timeout_ms` | integer | optional | Render timeout in ms. Server default when omitted. |
+| `scale` | integer | optional | PNG resolution multiplier (`deviceScaleFactor`). Integer in **1..4**, server default **3**. Ignored for `format=svg` (responds 200 with the same SVG, logs `scale_ignored_for_svg` warning in the structured log). Out-of-range / non-integer → `400 invalid_request` (`error_field: "scale"`). |
+| `mermaid_config` | object | optional | Per-request Mermaid configuration override (subject to server-side schema validation). |
+| `post_process` | object | optional | SVG post-processing options (e.g. `strip_max_width`, `rewrite_ids`). |
 
-`@mermaid-js/mermaid-cli` は Programmatic API が semver対象外のため exact pin で管理します。依存更新時は `npm ci` で lockfile を同期し、property test、統合テスト、画像差分確認、性能確認を通してから反映してください。
+### Examples
 
-Phase 4.5 時点では、production dependency の critical / high advisory を 0 にする方針です。残存する moderate / low advisory は `docs/dependency-overrides.md` に到達性、緩和策、解除条件、再評価期限を記録します。
+```bash
+# SVG (default)
+curl -X POST http://localhost:3100/render \
+  -H "Content-Type: application/json" \
+  -d '{"code":"flowchart LR\n A-->B","format":"svg"}' \
+  > out.svg
 
-## Chromium sandbox運用
+# PNG at server default scale (3x)
+curl -X POST http://localhost:3100/render \
+  -H "Content-Type: application/json" \
+  -d '{"code":"flowchart LR\n A-->B","format":"png"}' \
+  > out.png
 
-本番運用 (Windows Docker Desktop) では `--no-sandbox` を使用せず、`docker-compose.dev-sysadmin.yml` overlay で `SYS_ADMIN` / `SYS_CHROOT` capability を追加して Chromium 自身の Linux namespace sandbox を有効化します。非root実行、`chromium-sandbox`、`tini`、read-only filesystem、tmpfs、PID/メモリ制限はベース構成 (`docker-compose.yml`) で固定されており、overlay はそれらを維持したまま sandbox 起動に必要な最小権限のみを追加します（`requirements.md` C-P-09、`design.md` §8.1 参照）。
+# PNG high-DPI (4x)
+curl -X POST http://localhost:3100/render \
+  -H "Content-Type: application/json" \
+  -d '{"code":"flowchart LR\n A-->B","format":"png","scale":4}' \
+  > out_hidpi.png
 
-日常語で言うと、Windows Docker Desktop は「Linux VM の上の Docker」という二重構造で、その VM が Chromium sandbox の隔離部屋作成に必要な権限を絞っているため、Chromium 側にだけピンポイントで「隔離部屋を作っていい」許可証 (`SYS_ADMIN` / `SYS_CHROOT`) を渡す方針です。`--no-sandbox` で sandbox を無効化するより、必要権限を最小付与して sandbox 有効のまま動かす方が安全です。
+# PNG lightweight (1x)
+curl -X POST http://localhost:3100/render \
+  -H "Content-Type: application/json" \
+  -d '{"code":"flowchart LR\n A-->B","format":"png","scale":1}' \
+  > out_small.png
+```
 
-`--no-sandbox` は現在の標準運用には含めません。ローカル / Tailscale 内利用でも、外部入力の Mermaid を Chromium で処理するため、sandbox 有効のまま運用してください。
+### Error responses
 
-## フォント
+`400 invalid_request` is returned for invalid `code` / `format` / `timeout_ms` / `scale` / `mermaid_config` etc. The JSON body includes `error_type`, `error_field`, and `error_constraint`.
 
-日本語表示の美観を優先するため、コンテナには `fonts-noto-cjk` を導入し、Mermaid設定で `Noto Sans CJK JP` を優先します。
+```json
+{
+  "request_id": "...",
+  "error_type": "invalid_request",
+  "status_code": 400,
+  "format": "png",
+  "error_message": "scale must be between 1 and 4",
+  "error_field": "scale",
+  "error_constraint": "out_of_range"
+}
+```
 
-## Docker E2E 補助
+## Environment variables
 
-`scripts/docker-e2e.sh` は `/healthz` と `/render` を叩く簡易検証スクリプトです。
+Configurable through `.env` (loaded by Docker at startup).
+
+- `DEFAULT_TIMEOUT_MS`: Mermaid CLI timeout in ms (default 8000)
+- `RATE_LIMIT_MAX_INFLIGHT`: HTTP-layer concurrent-request cap (default 15)
+- `BROWSER_POOL_SIZE`: BrowserContext pool size (default 4)
+- `POOL_QUEUE_MAX`: BrowserPool queue cap (default 20)
+- `MAX_CODE_SIZE`: maximum byte size of `code` (default 51200)
+- `RENDERER_MODE`: `programmatic` or `cli` (default `programmatic`)
+
+> PNG scale and SVG padding are no longer environment variables — PNG `scale` is now a request-time API parameter (`1..4`, default `3`). The previous `PNG_RENDER_SCALE` / `MERMAID_PADDING` variables have been removed.
+
+## Dependency update policy
+
+The Programmatic API of `@mermaid-js/mermaid-cli` is out of semver scope, so we exact-pin it. After updates, sync `npm ci`, then run property tests, integration tests, image-diff verification, and performance checks before merging.
+
+As of Phase 4.5, the policy is zero critical / high advisories on production dependencies. Remaining moderate / low advisories are tracked in `docs/dependency-overrides.md` with reachability, mitigation, exit criteria, and re-evaluation date.
+
+## Chromium sandbox operation
+
+In production (Windows Docker Desktop) we do **not** use `--no-sandbox`. Instead we add `SYS_ADMIN` / `SYS_CHROOT` via `docker-compose.dev-sysadmin.yml` so that Chromium can use its own Linux-namespace sandbox. Non-root execution, `chromium-sandbox`, `tini`, read-only filesystem, tmpfs, and PID / memory limits are fixed in the base `docker-compose.yml`. The overlay only adds the minimum capabilities needed to enable the sandbox (see `requirements.md` C-P-09, `design.md` §8.1).
+
+In plain words: Windows Docker Desktop is "Docker on top of a Linux VM," and that VM restricts the permissions Chromium needs to create its isolated room. We hand Chromium a narrow permission slip (`SYS_ADMIN` / `SYS_CHROOT`) instead of disabling the sandbox with `--no-sandbox` — running with the sandbox enabled is safer than disabling it.
+
+`--no-sandbox` is not part of the standard configuration. Even for local / Tailscale-only use, please keep the sandbox enabled — external Mermaid input is still processed through Chromium.
+
+## Fonts
+
+To keep Japanese rendering attractive, the container ships with `fonts-noto-cjk` and the Mermaid configuration prefers `Noto Sans CJK JP`.
+
+## Docker E2E helper
+
+`scripts/docker-e2e.sh` is a small probe that hits `/healthz` and `/render`.
 
 ```bash
 chmod +x scripts/docker-e2e.sh
 scripts/docker-e2e.sh
 ```
 
-## よくある問題
+## Common problems
 
-### ポートが使用中
+### Port already in use
 
-`Bind for 0.0.0.0:3100 failed` が出る場合は、`docker-compose.yml` のポートを変更してください。
+If `Bind for 0.0.0.0:3100 failed` appears, change the port in `docker-compose.yml`:
 
 ```yaml
 ports:
   - "3100:3000"
 ```
 
-その場合の確認先は `http://localhost:3100/healthz` になります。
+Then the check URL becomes `http://localhost:3100/healthz`.
 
-### Docker Desktop でコンテナが Restarting になる
+### Container goes into Restarting on Docker Desktop
 
-通常は前述の overlay 込み起動コマンドを使うため発生しませんが、誤って overlay を外して `docker compose up` のみで起動すると `docker compose ps` で `Restarting` と表示され、ログに以下のエラーが出ます。
+This should not happen when you use the overlay command above. If you accidentally start with only `docker compose up`, `docker compose ps` will show `Restarting` and the logs will show:
 
 ```text
 Failed to move to new namespace ... Operation not permitted
 FATAL:zygote_host_impl_linux.cc
 ```
 
-これは Chromium sandbox が隔離部屋（namespace）を作る権限を Docker Desktop からもらえない状態です。標準の overlay 込みコマンドで起動し直してください。
+That means Chromium could not get permission from Docker Desktop to create the namespace for its sandbox. Restart with the standard overlay command:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev-sysadmin.yml up --build -d
 ```
 
-起動後は以下を確認します。
+Then verify:
 
 ```bash
 curl -i http://localhost:3100/healthz
@@ -139,54 +222,54 @@ curl -i -X POST http://localhost:3100/render \
   -d '{"code":"graph TD\nA-->B","format":"svg"}'
 ```
 
-## 現在の確認済み状態
+## Current verified status
 
-Phase 6 時点の確認済み状態です。
+As of REQ-U-11 (2026-05-18):
 
 - `npm run build`: pass
-- `npm test`: 51 files / 200 tests pass
+- `npm test`: 58 files / 245 tests pass
 - `npm audit --omit=dev --audit-level=high`: pass
 - `docker compose build`: pass
-- Windows Docker Desktop で `docker-compose.dev-sysadmin.yml` 併用起動下、`/healthz` / `/readyz` / `/livez` / `/render` SVG smoke が 200
-- 性能 NFR-01 (単純 flowchart p50 ≤ 500ms): PASS (after p50 = 419.7ms、`docs/perf/2026-05-16_compare.md` 参照)
-- 切替後 5 分監視: PASS (`docs/phase6-deployment-verification/5min-monitoring-2026-05-16.md` 参照)
+- On Windows Docker Desktop with `docker-compose.dev-sysadmin.yml` overlay: `/healthz` / `/readyz` / `/livez` / `/render` SVG and PNG smoke all return 200
+- Performance NFR-01 (simple flowchart p50 ≤ 500ms): PASS (see `docs/perf/2026-05-16_compare.md`)
+- Post-deploy 5-min monitoring (Phase 6): PASS (see `docs/phase6-deployment-verification/5min-monitoring-2026-05-16.md`)
 
-## テスト
+## Tests
 
 ```bash
 npm run test
 ```
 
-## 外部参照されているファイル(削除・改名・force push 禁止)
+## Externally referenced files (do not delete / rename / force-push)
 
-以下のファイルおよびディレクトリは、**外部の公開 Issue / 公開ドキュメントから commit hash 固定で永続リンクされている**ため、削除・改名・該当 commit を消す force push を行ってはなりません。Mermaid 公式リポジトリのメンテナ調査やコミュニティ参照が壊れます。
+The following files and directories are **permalinked from public Issues and public documents at fixed commit hashes**. Do not delete, rename, or force-push history that removes the referenced commits — that would break Mermaid's maintainer investigations and community references.
 
-### Mermaid 公式リポジトリの Issue から参照されているファイル
+### Files referenced from Mermaid upstream issues
 
-参照元: `mermaid-js/mermaid` の新規 Bug Issue(themeCSS `foreignObject` selector silently lowercased、2026-05-16 投稿)
+Source: a Mermaid bug issue against `mermaid-js/mermaid` (themeCSS `foreignObject` selector silently lowercased, filed 2026-05-16)
 
-固定 commit: `75bcb4d`
+Pinned commit: `75bcb4d`
 
-| パス | 役割 |
+| Path | Role |
 |---|---|
-| `docs/svg-themecss-lowercase-verification-2026-05-16/output-with-themeCSS.svg` | 11.15.0 + themeCSS 設定下の生成 SVG(根拠データ) |
-| `docs/svg-themecss-lowercase-verification-2026-05-16/output-no-themeCSS.svg` | 11.15.0 themeCSS 未設定のコントロール SVG |
-| `docs/svg-themecss-lowercase-verification-2026-05-16/output-with-themeCSS-mermaid11140.svg` | 11.14.0(PR #7737 取込前)+ themeCSS 設定下の比較 SVG |
-| `docs/svg-themecss-lowercase-verification-2026-05-16/output-no-themeCSS-mermaid11140.svg` | 11.14.0 コントロール SVG |
-| `docs/svg-themecss-lowercase-verification-2026-05-16/output-with-themeCSS-develop-2026-05-16.svg` | Mermaid develop ブランチ(`v11.15.0+2a51ae4`)再現確認 SVG |
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-with-themeCSS.svg` | Generated SVG with themeCSS on 11.15.0 (evidence) |
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-no-themeCSS.svg` | Control SVG without themeCSS on 11.15.0 |
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-with-themeCSS-mermaid11140.svg` | Comparison SVG on 11.14.0 (pre PR #7737) |
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-no-themeCSS-mermaid11140.svg` | Control SVG on 11.14.0 |
+| `docs/svg-themecss-lowercase-verification-2026-05-16/output-with-themeCSS-develop-2026-05-16.svg` | Reproduction SVG on Mermaid develop (`v11.15.0+2a51ae4`) |
 
-これらの SVG は Mermaid メンテナが直接ブラウザで開いて `<style>` 要素内のセレクタを検証する根拠資料として参照されています。
+Mermaid maintainers open these SVGs directly in a browser to inspect `<style>` element selectors.
 
-### 運用ルール
+### Operational rules
 
-1. **削除・改名禁止**: ファイルパス・ファイル名・ディレクトリ名を変更しない。
-2. **force push 禁止**: commit `75bcb4d` を含む履歴を書き換える force push(`git push -f` / `git reset --hard` 後の push 等)を行わない。投稿済み Issue から参照される permalink が壊れます。
-3. **リポジトリ非公開化禁止**: 本リポジトリを private に変更すると外部リンクが全て壊れます。
-4. **リポジトリ削除禁止**: 同上。
-5. **大規模再構成時は事前に検討**: 仮にリポジトリ全体の再構成が必要になった場合は、(a) 元の commit を残したまま新構成で別ブランチを切る、(b) GitHub の Wayback Machine / Software Heritage に事前アーカイブを取る、等の代替を検討してから実施する。
+1. **No delete or rename**: do not change file paths, filenames, or directory names.
+2. **No force-push**: do not rewrite history that contains commit `75bcb4d` (`git push -f`, `git reset --hard` followed by push, etc.). Permalinks from the filed issue would break.
+3. **Do not make the repository private**: external links would all break.
+4. **Do not delete the repository**: same as above.
+5. **Plan large-scale restructuring carefully**: if a repository-wide restructure becomes necessary, consider alternatives first — (a) keep the original commits and split a new structure into a separate branch, (b) archive ahead of time on the Wayback Machine / Software Heritage, etc.
 
-### 投稿された Issue
+### Filed Issue
 
-- [mermaid-js/mermaid#7759](https://github.com/mermaid-js/mermaid/issues/7759) — `[Bug] themeCSS lowercases foreignObject selector, breaking SVG workaround in standalone mode`(2026-05-16 投稿、初期ラベル `Status: Triage`)
+- [mermaid-js/mermaid#7759](https://github.com/mermaid-js/mermaid/issues/7759) — `[Bug] themeCSS lowercases foreignObject selector, breaking SVG workaround in standalone mode` (filed 2026-05-16, initial label `Status: Triage`)
 
-ドラフト本体と投稿経緯は `docs/issue-drafts/2026-05-16_mermaid-themecss-lowercase-bug.md` を参照してください。
+See `docs/issue-drafts/2026-05-16_mermaid-themecss-lowercase-bug.md` for the draft body and posting history.
